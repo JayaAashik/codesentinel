@@ -1,0 +1,16 @@
+[project]
+name = "codesentinel"
+version = "0.1.0"
+description = "AI Code Bug Detection RL Environment"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "openai",
+    "python-dotenv"
+]
+
+[tool.uvicorn]
+app = "server.app:app"
+host = "0.0.0.0"
+port = 7860
