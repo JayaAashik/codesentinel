@@ -27,6 +27,9 @@ def get_env(task):
         _envs[task] = CodeSentinelEnvironment(task=task)
     return _envs[task]
 
+from typing import Optional
+from fastapi import Body
+
 class ResetRequest(BaseModel):
     task: str = "easy"
 
@@ -113,14 +116,17 @@ def list_tasks():
     }
 
 @app.post("/reset")
-def reset(request: ResetRequest):
+def reset(request: Optional[ResetRequest] = Body(default=None)):
+    task = request.task if request else "easy"
     try:
-        env = CodeSentinelEnvironment(task=request.task)
-        _envs[request.task] = env
+        env = CodeSentinelEnvironment(task=task)
+        _envs[task] = env
         obs = env.reset()
         return asdict(obs)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+from fastapi import Body
 
 @app.post("/step")
 def step(request: StepRequest):
