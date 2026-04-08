@@ -116,7 +116,7 @@ def list_tasks():
     }
 
 @app.post("/reset")
-def reset(request: Optional[ResetRequest] = Body(default=None)):
+def reset(request: Optional[ResetRequest] = None):
     task = request.task if request else "easy"
     try:
         env = CodeSentinelEnvironment(task=task)

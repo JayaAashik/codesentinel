@@ -1,7 +1,3 @@
-"""
-inference.py — CodeSentinel OpenEnv
-MANDATORY: named inference.py, placed in root, uses exact [START][STEP][END] format.
-"""
 import json
 import os
 import sys
@@ -14,7 +10,8 @@ from data import TASK_CONFIGS
 from models import CodeReviewAction
 from server.environment import CodeSentinelEnvironment
 
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
+# ── MANDATORY ENV VARS ────────────────────────────────────────
+API_KEY      = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 BENCHMARK    = "codesentinel"
