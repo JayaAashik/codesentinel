@@ -138,7 +138,14 @@ def run_task(client, task_name):
             rewards.append(0.0)
             done = True
 
-    score = sum(rewards) / len(rewards) if rewards else 0.0
+   score = sum(rewards) / len(rewards) if rewards else 0.0
+
+# clamp final score also
+epsilon = 0.01
+if score <= 0:
+    score = epsilon
+elif score >= 1:
+    score = 1 - epsilon
     success = score >= SUCCESS_SCORE_THRESHOLD
     log_end(success=success, steps=step_num, score=score, rewards=rewards)
     return score
