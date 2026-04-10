@@ -1,68 +1,101 @@
 name: codesentinel
 version: "1.0.0"
+
 description: >
-  CodeSentinel is an OpenEnv environment that trains AI agents to detect
-  and fix real-world Python code bugs. The agent reviews buggy code snippets
-  and must identify the bug type (security/logic/performance/null_reference/
-  exception_handling), assign severity (1-5), locate the bug line, and write
-  corrected code. Multi-dimensional reward covers bug classification accuracy,
-  severity rating, line localization, and fix quality.
+  CodeSentinel is a reinforcement learning environment where AI agents analyze
+  real-world Python code to detect and fix bugs. The agent must classify bug type,
+  estimate severity, locate the bug line, and generate corrected code.
+  Supports 70+ dynamically generated code snippets for scalable evaluation.
 tags:
   - openenv
+  - reinforcement-learning
   - code-review
   - security
   - real-world
-  - nlp
+
+dataset: "70+ dynamically generated code snippets"
+
 tasks:
   - name: easy
     description: "Identify bug type only"
     difficulty: easy
-    max_steps: 5
-    reward_range: [0.0, 1.0]
+    max_steps: 10
+    reward_range: [-1.0, 1.0]
+
   - name: medium
-    description: "Bug type + severity + line number"
+    description: "Identify bug type, severity, and line"
     difficulty: medium
-    max_steps: 7
-    reward_range: [0.0, 1.0]
+    max_steps: 25
+    reward_range: [-1.0, 1.0]
+
   - name: hard
-    description: "Bug type + severity + line + write fixed code"
+    description: "Full bug detection and fix generation"
     difficulty: hard
-    max_steps: 8
-    reward_range: [0.0, 1.0]
+    max_steps: 35
+    reward_range: [-1.0, 1.0]
+
 observation_space:
   type: object
   fields:
-    snippet_id:      { type: string }
-    title:           { type: string }
-    language:        { type: string }
-    code:            { type: string }
-    task_description:{ type: string }
-    step:            { type: integer }
-    total_snippets:  { type: integer }
-    done:            { type: boolean }
+    snippet_id:
+      type: string
+    title:
+      type: string
+    language:
+      type: string
+    code:
+      type: string
+    task_description:
+      type: string
+    step:
+      type: integer
+    total_snippets:
+      type: integer
+    done:
+      type: boolean
+
 action_space:
   type: object
   fields:
     bug_type:
       type: string
-      enum: [security, logic, performance, null_reference, exception_handling]
+      enum:
+        - security
+        - logic
+        - performance
+        - null_reference
+        - exception_handling
+
     severity:
       type: integer
       range: [1, 5]
+
     bug_line:
       type: integer
+
     fixed_code:
       type: string
       required: false
+
     explanation:
       type: string
       required: false
+
 reward:
   type: float
-  range: [0.0, 1.0]
+  range: [-1.0, 1.0]
+
+evaluation:
+  success_threshold: 0.6
+  metrics:
+    - bug_type_accuracy
+    - severity_accuracy
+    - line_accuracy
+    - fix_quality
+
 endpoints:
-  health: GET  /health
-  tasks:  GET  /tasks
+  health: GET /health
+  tasks:  GET /tasks
   reset:  POST /reset
   step:   POST /step
-  state:  GET  /state
+  state:  GET /state
