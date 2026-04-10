@@ -3,20 +3,25 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from data import SNIPPET_INDEX, TASK_CONFIGS
 from models import CodeReviewAction, CodeObservation, CodeSentinelState
 
 
 class CodeSentinelEnvironment:
+    """
+    CodeSentinel RL Environment.
+    Agent reviews buggy Python code snippets and must:
+      easy   → identify bug type only
+      medium → bug type + severity + line number
+      hard   → bug type + severity + line + write fixed code
+    """
 
     def __init__(self, task: str = "easy"):
         if task not in TASK_CONFIGS:
             raise ValueError(f"task must be one of {list(TASK_CONFIGS.keys())}")
-
         self.task = task
         self.config = TASK_CONFIGS[task]
-
         self._episode_id = None
         self._step_count = 0
         self._snippets = []
@@ -25,89 +30,66 @@ class CodeSentinelEnvironment:
         self._bugs_correct = 0
         self._done = True
 
-    # ================= RESET =================
     def reset(self) -> CodeObservation:
-        try:
-            self._episode_id = str(uuid.uuid4())[:8]
-            self._step_count = 0
-            self._cumulative_reward = 0.0
-            self._bugs_correct = 0
-            self._history = []
-            self._done = False
+        self._episode_id = str(uuid.uuid4())[:8]
+        self._step_count = 0
+        self._cumulative_reward = 0.0
+        self._bugs_correct = 0
+        self._history = []
+        self._done = False
+        ids = self.config["snippet_ids"]
+        self._snippets = [SNIPPET_INDEX[sid] for sid in ids if sid in SNIPPET_INDEX]
+        return self._make_observation()
 
-            ids = self.config.get("snippet_ids", [])
-            self._snippets = [SNIPPET_INDEX[sid] for sid in ids if sid in SNIPPET_INDEX]
-
-            return self._make_observation()
-
-        except Exception as e:
-            self._done = True
-            return CodeObservation(
-                snippet_id="error",
-                title="reset_failed",
-                language="python",
-                code="",
-                task_description=str(e),
-                step=0,
-                total_snippets=0,
-                done=True,
-            )
-
-    # ================= STEP =================
     def step(self, action: CodeReviewAction):
-        try:
-            if self._done:
-                return self._make_observation(), 0.0, True, {"error": "Episode done"}
+        if self._done:
+            raise RuntimeError("Episode over. Call reset() first.")
 
-            if self._step_count >= len(self._snippets):
-                self._done = True
-                return self._make_observation(), 0.0, True, {"error": "Out of bounds"}
+        current = self._snippets[self._step_count]
+        reward, breakdown, feedback = self._compute_reward(action, current)
+        self._cumulative_reward += reward
 
-            current = self._snippets[self._step_count]
+        if breakdown["bug_type_score"] == 1.0:
+            self._bugs_correct += 1
 
-            # ---- SAFE reward ----
-            try:
-                reward, breakdown, feedback = self._compute_reward(action, current)
-            except Exception as e:
-                return self._make_observation(), 0.0, True, {"error": f"reward error: {str(e)}"}
+        self._history.append({
+            "step": self._step_count,
+            "snippet_id": current["id"],
+            "title": current["title"],
+            "action": {
+                "bug_type": action.bug_type,
+                "severity": action.severity,
+                "bug_line": action.bug_line,
+                "fixed_code": action.fixed_code,
+                "explanation": action.explanation,
+            },
+            "reward": reward,
+            "breakdown": breakdown,
+            "correct_bug_type": current["bug_type"],
+            "correct_severity": current["severity"],
+            "correct_line": current["bug_line"],
+            "feedback": feedback,
+        })
 
-            self._cumulative_reward += reward
+        self._step_count += 1
+        self._done = self._step_count >= len(self._snippets)
 
-            if breakdown.get("bug_type_score", 0.0) == 1.0:
-                self._bugs_correct += 1
+        obs = self._make_observation()
+        obs.reward = reward
+        obs.feedback = feedback
 
-            self._history.append({
-                "step": self._step_count,
-                "snippet_id": current.get("id", "unknown"),
-                "title": current.get("title", ""),
-                "action": {
-                    "bug_type": getattr(action, "bug_type", None),
-                    "severity": getattr(action, "severity", None),
-                    "bug_line": getattr(action, "bug_line", None),
-                    "fixed_code": getattr(action, "fixed_code", None),
-                    "explanation": getattr(action, "explanation", None),
-                },
-                "reward": reward,
-                "breakdown": breakdown,
-                "feedback": feedback,
-            })
+        info = {
+            "snippet_id": current["id"],
+            "correct_bug_type": current["bug_type"],
+            "correct_severity": current["severity"],
+            "correct_line": current["bug_line"],
+            "breakdown": breakdown,
+            "feedback": feedback,
+            "cumulative_reward": round(self._cumulative_reward, 4),
+            "bugs_correct": self._bugs_correct,
+        }
+        return obs, reward, self._done, info
 
-            self._step_count += 1
-            self._done = self._step_count >= len(self._snippets)
-
-            obs = self._make_observation()
-            obs.reward = reward
-            obs.feedback = feedback
-
-            return obs, reward, self._done, {
-                "cumulative_reward": round(self._cumulative_reward, 4),
-                "bugs_correct": self._bugs_correct,
-            }
-
-        except Exception as e:
-            return self._make_observation(), 0.0, True, {"fatal_error": str(e)}
-
-    # ================= STATE =================
     @property
     def state(self) -> CodeSentinelState:
         return CodeSentinelState(
@@ -122,129 +104,108 @@ class CodeSentinelEnvironment:
             history=self._history,
         )
 
-    # ================= OBS =================
     def _make_observation(self) -> CodeObservation:
-        try:
-            if self._done or self._step_count >= len(self._snippets):
-                return CodeObservation(
-                    snippet_id="done",
-                    title="",
-                    language="python",
-                    code="",
-                    task_description="",
-                    step=self._step_count,
-                    total_snippets=len(self._snippets),
-                    done=True,
-                )
-
-            s = self._snippets[self._step_count]
-
+        if self._done or self._step_count >= len(self._snippets):
             return CodeObservation(
-                snippet_id=s.get("id", ""),
-                title=s.get("title", ""),
-                language=s.get("language", "python"),
-                code=s.get("code", ""),
-                task_description=self.config.get("description", ""),
+                snippet_id="done", title="", language="python",
+                code="", task_description="",
                 step=self._step_count,
                 total_snippets=len(self._snippets),
-                done=False,
-            )
-
-        except Exception as e:
-            return CodeObservation(
-                snippet_id="error",
-                title="obs_error",
-                language="python",
-                code="",
-                task_description=str(e),
-                step=0,
-                total_snippets=0,
                 done=True,
             )
+        s = self._snippets[self._step_count]
+        return CodeObservation(
+            snippet_id=s["id"],
+            title=s["title"],
+            language=s["language"],
+            code=s["code"],
+            task_description=self.config["description"],
+            step=self._step_count,
+            total_snippets=len(self._snippets),
+            done=False,
+        )
 
-    # ================= REWARD =================
-    def _compute_reward(self, action, snippet) -> Tuple[float, Dict, str]:
-        try:
-            w = self.config.get("weights", {
-                "bug_type": 0.4,
-                "severity": 0.2,
-                "line": 0.2,
-                "fix": 0.2
-            })
+    def _compute_reward(self, action: CodeReviewAction, snippet: Dict) -> Tuple[float, Dict, str]:
+        w = self.config["weights"]
+        feedback_parts = []
 
-            feedback_parts = []
+        # 1. Bug type score
+        bug_type_score = 1.0 if action.bug_type == snippet["bug_type"] else 0.0
+        if bug_type_score == 0.0:
+            feedback_parts.append(f"Wrong bug type: '{action.bug_type}' (correct: '{snippet['bug_type']}')")
+        else:
+            feedback_parts.append(f"Correct bug type: {action.bug_type} ✓")
 
-            # ---- SAFE extraction ----
-            bug_type = getattr(action, "bug_type", "")
-            severity = getattr(action, "severity", 3)
-            bug_line = getattr(action, "bug_line", 1)
-            fixed_code = getattr(action, "fixed_code", "")
+        # 2. Severity score (partial credit for being close)
+        if self.config["require_severity"]:
+            diff = abs(action.severity - snippet["severity"])
+            severity_score = max(0.0, 1.0 - diff * 0.3)
+            if diff > 0:
+                feedback_parts.append(f"Severity off by {diff} (correct: {snippet['severity']})")
+        else:
+            severity_score = 1.0
 
-            # ---- Bug type ----
-            correct_bug = snippet.get("bug_type", "")
-            bug_type_score = 1.0 if bug_type == correct_bug else 0.0
-
-            # ---- Severity ----
-            if self.config.get("require_severity", False):
-                correct_sev = snippet.get("severity", 3)
-                diff = abs(severity - correct_sev)
-                severity_score = max(0.0, 1.0 - diff * 0.3)
-            else:
-                severity_score = 1.0
-
-            # ---- Line ----
-            if self.config.get("require_line", False):
-                correct_line = snippet.get("bug_line", 1)
-                diff = abs(bug_line - correct_line)
-                line_score = 1.0 if diff == 0 else (0.5 if diff <= 1 else 0.0)
-            else:
+        # 3. Line number score (partial credit for being close)
+        if self.config["require_line"]:
+            line_diff = abs(action.bug_line - snippet["bug_line"])
+            if line_diff == 0:
                 line_score = 1.0
-
-            # ---- Fix ----
-            if self.config.get("require_fix", False):
-                fix_score, _ = self._score_fix(fixed_code, snippet)
+                feedback_parts.append(f"Correct line: {action.bug_line} ✓")
+            elif line_diff <= 1:
+                line_score = 0.5
+                feedback_parts.append(f"Line off by 1 (correct: {snippet['bug_line']})")
             else:
-                fix_score = 1.0
+                line_score = 0.0
+                feedback_parts.append(f"Wrong line: {action.bug_line} (correct: {snippet['bug_line']})")
+        else:
+            line_score = 1.0
 
-            total = (
-                bug_type_score * w.get("bug_type", 0.4) +
-                severity_score * w.get("severity", 0.2) +
-                line_score * w.get("line", 0.2) +
-                fix_score * w.get("fix", 0.2)
-            )
+        # 4. Fix quality score
+        if self.config["require_fix"]:
+            fix_score, fix_feedback = self._score_fix(action.fixed_code or "", snippet)
+            feedback_parts.append(fix_feedback)
+        else:
+            fix_score = 1.0
 
-            breakdown = {
-                "bug_type_score": round(bug_type_score, 2),
-                "severity_score": round(severity_score, 2),
-                "line_score": round(line_score, 2),
-                "fix_score": round(fix_score, 2),
-                "total": round(total, 4),
-            }
+        total = (
+            bug_type_score * w["bug_type"]
+            + severity_score * w["severity"]
+            + line_score * w["line"]
+            + fix_score * w["fix"]
+        )
 
-            return round(total, 4), breakdown, "ok"
+        breakdown = {
+            "bug_type_score": round(bug_type_score, 2),
+            "severity_score": round(severity_score, 2),
+            "line_score": round(line_score, 2),
+            "fix_score": round(fix_score, 2),
+            "total": round(total, 4),
+        }
 
-        except Exception as e:
-            return 0.0, {
-                "bug_type_score": 0.0,
-                "severity_score": 0.0,
-                "line_score": 0.0,
-                "fix_score": 0.0,
-                "total": 0.0,
-            }, f"error: {str(e)}"
+        return round(total, 4), breakdown, " | ".join(feedback_parts)
 
-    # ================= FIX SCORE =================
     def _score_fix(self, fixed_code: str, snippet: Dict) -> Tuple[float, str]:
-        try:
-            if not fixed_code or len(fixed_code.strip()) < 5:
-                return 0.0, "No fix"
+        if not fixed_code or len(fixed_code.strip()) < 5:
+            return 0.0, "No fix provided"
 
-            fixed_lower = fixed_code.lower()
-            keywords = snippet.get("fix_keywords", [])
+        fixed_lower = fixed_code.lower()
+        keywords = snippet.get("fix_keywords", [])
 
-            matches = sum(1 for kw in keywords if kw.lower() in fixed_lower)
-            keyword_score = min(1.0, matches / max(len(keywords), 1) * 2.0)
+        # Keyword match — does fix contain the right concepts?
+        matches = sum(1 for kw in keywords if kw.lower() in fixed_lower)
+        keyword_score = min(1.0, matches / max(len(keywords), 1) * 2.0)
 
-            return round(keyword_score, 2), "ok"
+        # Length check — fix should be similar length to correct fix
+        correct_fix = snippet.get("fixed_code", "")
+        correct_lines = len(correct_fix.strip().split("\n"))
+        submitted_lines = len(fixed_code.strip().split("\n"))
+        line_diff = abs(correct_lines - submitted_lines)
+        length_score = 1.0 if line_diff <= 2 else 0.5
 
-        except Exception:
-            return 0.0, "error"
+        # Does it remove the bug pattern? (original bad code should not appear)
+        original_bad = snippet["code"].strip().split("\n")[snippet["bug_line"] - 1].strip()
+        no_regression = 0.0 if original_bad in fixed_code else 1.0
+
+        final = keyword_score * 0.5 + length_score * 0.25 + no_regression * 0.25
+        feedback = f"Fix score={final:.2f} (keywords={keyword_score:.1f}, length={length_score:.1f})"
+        return round(final, 2), feedback
