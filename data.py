@@ -1,227 +1,155 @@
-"""
-CodeSentinel — Buggy code dataset.
-15 real-world Python code snippets with bugs across 5 categories.
-"""
+import random
 
-CODE_SNIPPETS = [
-    # ── SECURITY BUGS ─────────────────────────────────────────────────
+BASE_SNIPPETS = [
     {
         "id": "c001",
-        "title": "User Login Query",
+        "title": "SQL Injection",
         "language": "python",
-        "code": 'def login(username, password):\n    query = f"SELECT * FROM users WHERE username=\'{username}\' AND password=\'{password}\'"\n    result = db.execute(query)\n    return len(result) > 0',
+        "code": "query = f\"SELECT * FROM users WHERE username='{username}'\"",
         "bug_type": "security",
         "severity": 1,
-        "bug_line": 2,
-        "description": "SQL injection — attacker can bypass login with username: admin'--",
-        "fix_keywords": ["parameterized", "placeholder", "?", "%s", "prepared statement"],
-        "fixed_code": 'def login(username, password):\n    query = "SELECT * FROM users WHERE username=? AND password=?"\n    result = db.execute(query, (username, password))\n    return len(result) > 0',
+        "bug_line": 1,
+        "fix_keywords": ["parameterized"],
+        "fixed_code": "query = \"SELECT * FROM users WHERE username=?\"",
     },
     {
         "id": "c002",
-        "title": "API Configuration Class",
+        "title": "Hardcoded Secret",
         "language": "python",
-        "code": 'class Config:\n    DATABASE_URL = "postgresql://admin:password123@localhost/prod"\n    API_SECRET = "sk-abc123secretkey456789"\n    DEBUG = True',
+        "code": "API_KEY = 'SECRET123'",
         "bug_type": "security",
         "severity": 1,
-        "bug_line": 2,
-        "description": "Hardcoded secrets in source code — exposed in version control",
-        "fix_keywords": ["os.environ", "getenv", "environment variable", ".env", "os.getenv"],
-        "fixed_code": 'import os\n\nclass Config:\n    DATABASE_URL = os.environ.get("DATABASE_URL")\n    API_SECRET = os.environ.get("API_SECRET")\n    DEBUG = os.environ.get("DEBUG", "false").lower() == "true"',
-    },
-    {
-        "id": "c003",
-        "title": "Password Storage",
-        "language": "python",
-        "code": 'import hashlib\n\ndef store_password(password):\n    hashed = hashlib.md5(password.encode()).hexdigest()\n    db.save_password(hashed)',
-        "bug_type": "security",
-        "severity": 1,
-        "bug_line": 4,
-        "description": "MD5 is cryptographically broken — rainbow table attacks trivial",
-        "fix_keywords": ["bcrypt", "argon2", "sha256", "salt", "hashlib.sha256"],
-        "fixed_code": 'import bcrypt\n\ndef store_password(password):\n    salt = bcrypt.gensalt()\n    hashed = bcrypt.hashpw(password.encode(), salt)\n    db.save_password(hashed)',
-    },
-
-    # ── LOGIC BUGS ────────────────────────────────────────────────────
-    {
-        "id": "c004",
-        "title": "Array Max Finder",
-        "language": "python",
-        "code": 'def find_max(arr):\n    max_val = arr[0]\n    for i in range(len(arr) + 1):\n        if arr[i] > max_val:\n            max_val = arr[i]\n    return max_val',
-        "bug_type": "logic",
-        "severity": 2,
-        "bug_line": 3,
-        "description": "Off-by-one error — range(len(arr)+1) causes IndexError on last iteration",
-        "fix_keywords": ["range(len(arr))", "range(1,", "len(arr))"],
-        "fixed_code": 'def find_max(arr):\n    max_val = arr[0]\n    for i in range(1, len(arr)):\n        if arr[i] > max_val:\n            max_val = arr[i]\n    return max_val',
-    },
-    {
-        "id": "c005",
-        "title": "Email Validator",
-        "language": "python",
-        "code": 'def is_valid_email(email):\n    if "@" in email:\n        return True\n    return False',
-        "bug_type": "logic",
-        "severity": 3,
-        "bug_line": 2,
-        "description": "Too simplistic — accepts '@' or 'a@' as valid emails",
-        "fix_keywords": ["regex", "re.match", "split", "domain", "pattern"],
-        "fixed_code": 'import re\n\ndef is_valid_email(email):\n    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"\n    return bool(re.match(pattern, email))',
-    },
-    {
-        "id": "c006",
-        "title": "Admin Role Check",
-        "language": "python",
-        "code": 'def is_admin(role):\n    if role == "admin" or role == "Admin" or role == "ADMIN":\n        return True\n    return False',
-        "bug_type": "logic",
-        "severity": 3,
-        "bug_line": 2,
-        "description": "Fragile comparison — misses ADMin, adMin and other capitalizations",
-        "fix_keywords": ["lower()", "upper()", "casefold", ".lower() =="],
-        "fixed_code": 'def is_admin(role):\n    return role.lower() == "admin"',
-    },
-
-    # ── PERFORMANCE BUGS ──────────────────────────────────────────────
-    {
-        "id": "c007",
-        "title": "User Orders Loader",
-        "language": "python",
-        "code": 'def get_all_orders(user_ids):\n    orders = []\n    for uid in user_ids:\n        user_orders = db.query(f"SELECT * FROM orders WHERE user_id={uid}")\n        orders.extend(user_orders)\n    return orders',
-        "bug_type": "performance",
-        "severity": 3,
-        "bug_line": 3,
-        "description": "N+1 query problem — one DB call per user instead of one batch query",
-        "fix_keywords": ["IN", "batch", "WHERE user_id IN", "join", "format_list"],
-        "fixed_code": 'def get_all_orders(user_ids):\n    placeholders = ",".join(["?"] * len(user_ids))\n    query = f"SELECT * FROM orders WHERE user_id IN ({placeholders})"\n    return db.query(query, user_ids)',
-    },
-    {
-        "id": "c008",
-        "title": "Fibonacci Generator",
-        "language": "python",
-        "code": 'def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n - 1) + fibonacci(n - 2)',
-        "bug_type": "performance",
-        "severity": 3,
-        "bug_line": 4,
-        "description": "Exponential O(2^n) time — hangs for n > 40 due to repeated subproblems",
-        "fix_keywords": ["lru_cache", "memo", "cache", "dynamic", "iterative", "dict"],
-        "fixed_code": 'from functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n - 1) + fibonacci(n - 2)',
-    },
-    {
-        "id": "c009",
-        "title": "Duplicate Remover",
-        "language": "python",
-        "code": 'def remove_duplicates(items):\n    result = []\n    for item in items:\n        if item not in result:\n            result.append(item)\n    return result',
-        "bug_type": "performance",
-        "severity": 4,
-        "bug_line": 4,
-        "description": "O(n²) — 'item not in result' is O(n) linear scan inside O(n) loop",
-        "fix_keywords": ["set", "seen", "dict", "OrderedDict"],
-        "fixed_code": 'def remove_duplicates(items):\n    seen = set()\n    result = []\n    for item in items:\n        if item not in seen:\n            seen.add(item)\n            result.append(item)\n    return result',
-    },
-
-    # ── NULL REFERENCE BUGS ───────────────────────────────────────────
-    {
-        "id": "c010",
-        "title": "String Info Extractor",
-        "language": "python",
-        "code": 'def get_string_info(text):\n    length = len(text)\n    words = text.split()\n    return {"length": length, "words": len(words)}',
-        "bug_type": "null_reference",
-        "severity": 2,
-        "bug_line": 2,
-        "description": "No None check — AttributeError crash if text is None",
-        "fix_keywords": ["None", "if text", "is None", "not text", "isinstance"],
-        "fixed_code": 'def get_string_info(text):\n    if text is None:\n        return {"length": 0, "words": 0}\n    length = len(text)\n    words = text.split()\n    return {"length": length, "words": len(words)}',
-    },
-    {
-        "id": "c011",
-        "title": "JSON Config Parser",
-        "language": "python",
-        "code": 'import json\n\ndef get_timeout(config_str):\n    data = json.loads(config_str)\n    return data["settings"]["timeout"]',
-        "bug_type": "null_reference",
-        "severity": 2,
-        "bug_line": 5,
-        "description": "No KeyError handling — crashes if 'settings' or 'timeout' missing",
-        "fix_keywords": ["get(", "KeyError", "try", "except", "if 'settings'"],
-        "fixed_code": 'import json\n\ndef get_timeout(config_str):\n    try:\n        data = json.loads(config_str)\n        return data.get("settings", {}).get("timeout", 30)\n    except (json.JSONDecodeError, KeyError):\n        return 30',
-    },
-
-    # ── EXCEPTION HANDLING BUGS ───────────────────────────────────────
-    {
-        "id": "c012",
-        "title": "Payment Processor",
-        "language": "python",
-        "code": 'def process_payment(amount, card):\n    try:\n        result = payment_gateway.charge(amount, card)\n        return result\n    except:\n        pass',
-        "bug_type": "exception_handling",
-        "severity": 2,
-        "bug_line": 5,
-        "description": "Bare except silently swallows payment failures — dangerous",
-        "fix_keywords": ["except Exception", "log", "raise", "logger", "return False"],
-        "fixed_code": 'def process_payment(amount, card):\n    try:\n        result = payment_gateway.charge(amount, card)\n        return result\n    except Exception as e:\n        logger.error(f"Payment failed: {e}")\n        raise',
-    },
-    {
-        "id": "c013",
-        "title": "File Config Reader",
-        "language": "python",
-        "code": 'def read_config(filepath):\n    f = open(filepath)\n    content = f.read()\n    return content',
-        "bug_type": "exception_handling",
-        "severity": 3,
-        "bug_line": 2,
-        "description": "File handle never closed if exception occurs — resource leak",
-        "fix_keywords": ["with open", "finally", "close()", "context manager"],
-        "fixed_code": 'def read_config(filepath):\n    with open(filepath) as f:\n        return f.read()',
-    },
-    {
-        "id": "c014",
-        "title": "Safe Division",
-        "language": "python",
-        "code": 'def calculate_average(total, count):\n    return total / count',
-        "bug_type": "exception_handling",
-        "severity": 2,
-        "bug_line": 2,
-        "description": "ZeroDivisionError crash when count is 0",
-        "fix_keywords": ["ZeroDivisionError", "if count", "count == 0", "try", "except"],
-        "fixed_code": 'def calculate_average(total, count):\n    if count == 0:\n        return 0.0\n    return total / count',
-    },
-    {
-        "id": "c015",
-        "title": "First Three Items",
-        "language": "python",
-        "code": 'def get_top_three(items):\n    return [items[0], items[1], items[2]]',
-        "bug_type": "logic",
-        "severity": 2,
-        "bug_line": 2,
-        "description": "IndexError crash if list has fewer than 3 elements",
-        "fix_keywords": ["len", "slice", "items[:3]", "if len"],
-        "fixed_code": 'def get_top_three(items):\n    return items[:3]',
-    },
+        "bug_line": 1,
+        "fix_keywords": ["os.getenv"],
+        "fixed_code": "import os\nAPI_KEY = os.getenv('API_KEY')",
+    }
 ]
 
+BUG_TEMPLATES = [
+    {
+        "type": "logic",
+        "code": [
+            "for i in range(len(arr)+1): print(arr[i])",
+            "if x > 5:\n print('ok')\nelse:\n print('ok')",
+        ],
+        "fix": [
+            "for i in range(len(arr)): print(arr[i])",
+            "fix condition logic"
+        ],
+        "severity": 3,
+        "line": [1]
+    },
+    {
+        "type": "runtime",
+        "code": [
+            "lst=[1,2,3]\nprint(lst[10])",
+            "def f(): return x\nf()"
+        ],
+        "fix": [
+            "print(lst[-1])",
+            "initialize x before use"
+        ],
+        "severity": 2,
+        "line": [2,1]
+    },
+    {
+        "type": "type",
+        "code": [
+            "print(5 + '5')",
+            "a=10\nb='2'\nprint(a+b)"
+        ],
+        "fix": [
+            "print(5 + int('5'))",
+            "convert types properly"
+        ],
+        "severity": 3,
+        "line": [1,2]
+    },
+    {
+        "type": "performance",
+        "code": [
+            "def fib(n): return fib(n-1)+fib(n-2)",
+            "for i in range(10000):\n for j in range(10000): pass"
+        ],
+        "fix": [
+            "use memoization",
+            "optimize nested loops"
+        ],
+        "severity": 4,
+        "line": [1]
+    },
+    {
+        "type": "null_reference",
+        "code": [
+            "def f(x): return len(x)",
+            "user=None\nprint(user.name)"
+        ],
+        "fix": [
+            "return len(x) if x else 0",
+            "check for None"
+        ],
+        "severity": 2,
+        "line": [1,2]
+    },
+    {
+        "type": "exception_handling",
+        "code": [
+            "try:\n x=1\nexcept:\n pass",
+            "try:\n open('file')\nexcept Exception:\n pass"
+        ],
+        "fix": [
+            "handle specific exception",
+            "log error properly"
+        ],
+        "severity": 3,
+        "line": [2,3]
+    }
+]
+
+AUTO_SNIPPETS = []
+
+for i in range(3, 75):
+    template = random.choice(BUG_TEMPLATES)
+    idx = random.randint(0, len(template["code"]) - 1)
+
+    AUTO_SNIPPETS.append({
+        "id": f"c{i:03}",
+        "title": f"Auto Bug {i}",
+        "language": "python",
+        "code": template["code"][idx],
+        "bug_type": template["type"],
+        "severity": template["severity"],
+        "bug_line": random.choice(template["line"]),
+        "fix_keywords": ["fix", "correct"],
+        "fixed_code": template["fix"][idx],
+    })
+
+CODE_SNIPPETS = BASE_SNIPPETS + AUTO_SNIPPETS
 SNIPPET_INDEX = {s["id"]: s for s in CODE_SNIPPETS}
-VALID_BUG_TYPES = ["security", "logic", "performance", "null_reference", "exception_handling"]
-VALID_SEVERITIES = [1, 2, 3, 4, 5]
 
 TASK_CONFIGS = {
     "easy": {
-        "description": "Identify the bug TYPE in each code snippet.",
-        "snippet_ids": ["c012", "c010", "c009", "c001", "c013"],
+        "description": "Identify bug type only",
+        "snippet_ids": [s["id"] for s in CODE_SNIPPETS[:10]],
         "require_severity": False,
         "require_line": False,
         "require_fix": False,
-        "weights": {"bug_type": 1.0, "severity": 0.0, "line": 0.0, "fix": 0.0},
+        "weights": {"bug_type": 1.0}
     },
     "medium": {
-        "description": "Identify bug TYPE + SEVERITY (1=critical..5=info) + bug LINE number.",
-        "snippet_ids": ["c001", "c004", "c007", "c002", "c008", "c011", "c014"],
+        "description": "Identify bug type, severity, and line",
+        "snippet_ids": [s["id"] for s in CODE_SNIPPETS[10:35]],
         "require_severity": True,
         "require_line": True,
         "require_fix": False,
-        "weights": {"bug_type": 0.5, "severity": 0.25, "line": 0.25, "fix": 0.0},
+        "weights": {"bug_type": 0.5, "severity": 0.25, "line": 0.25}
     },
     "hard": {
-        "description": "Identify bug TYPE + SEVERITY + LINE + write the FIXED code.",
-        "snippet_ids": ["c001", "c002", "c003", "c006", "c008", "c010", "c012", "c015"],
+        "description": "Full bug detection and fix",
+        "snippet_ids": [s["id"] for s in CODE_SNIPPETS[35:70]],
         "require_severity": True,
         "require_line": True,
         "require_fix": True,
-        "weights": {"bug_type": 0.25, "severity": 0.15, "line": 0.15, "fix": 0.45},
-    },
+        "weights": {"bug_type": 0.25, "severity": 0.15, "line": 0.15, "fix": 0.45}
+    }
 }
