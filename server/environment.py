@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import Dict
 from data import SNIPPET_INDEX, TASK_CONFIGS
-from models import CodeReviewAction, CodeObservation, CodeSentinelState
+from models import CodeReviewAction, CodeObservation, VortexVanguardState
 from server.grader import grade_easy, grade_medium, grade_hard, safe_score
 
 
