@@ -11,10 +11,10 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from models import CodeReviewAction
-from server.environment import VortexVanguardEnvironment  # changed
+from server.environment import CodeSentinelEnvironment
 
 app = FastAPI(
-    title="Vortex Vanguard OpenEnv",  # changed
+    title="CodeSentinel OpenEnv",
     description="RL environment for training AI agents to detect and fix code bugs.",
     version="1.0.0",
 )
@@ -24,7 +24,7 @@ _envs = {}
 
 def get_env(task):
     if task not in _envs:
-        _envs[task] = VortexVanguardEnvironment(task=task)  # changed
+        _envs[task] = CodeSentinelEnvironment(task=task)
     return _envs[task]
 
 class ResetRequest(BaseModel):
@@ -63,6 +63,7 @@ HOME_HTML = """<!DOCTYPE html>
 body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
 .mono{font-family:'JetBrains Mono',monospace}
 .wrap{max-width:900px;margin:0 auto;padding:0 20px}
+
 /* HERO */
 .hero{position:relative;padding:56px 24px 40px;text-align:center;overflow:hidden}
 .hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse 900px 500px at 50% 0%,rgba(59,130,246,.09) 0%,transparent 70%);pointer-events:none}
@@ -79,6 +80,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .dot-green{background:var(--green);box-shadow:0 0 8px var(--green)}
 .dot-blue{background:var(--blue);box-shadow:0 0 8px var(--blue)}
 .dot-amber{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+
 /* STATS */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:40px}
 .stat{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:18px 14px;text-align:center;position:relative;overflow:hidden;transition:border-color .2s}
@@ -92,8 +94,10 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .stat-num{font-size:28px;font-weight:800;font-family:'JetBrains Mono',monospace;line-height:1}
 .stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-top:5px}
 .c-green{color:var(--green)}.c-blue{color:var(--blue)}.c-amber{color:var(--amber)}.c-purple{color:var(--purple)}
+
 /* SECTION TITLES */
 .sec{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:12px;font-weight:600}
+
 /* TASKS */
 .tasks{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:40px}
 .task{border:1px solid var(--border);border-radius:var(--radius2);padding:20px;transition:all .2s;position:relative;overflow:hidden;cursor:default}
@@ -116,6 +120,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .chip-a{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:var(--amber)}
 .chip-r{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:var(--red)}
 .task-snippets{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+
 /* DEMO BOX */
 .demo-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden;margin-bottom:40px}
 .demo-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--bg3)}
@@ -140,6 +145,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .rr-score{font-weight:700;font-size:16px}
 .reward-bar{height:3px;background:var(--bg4);overflow:hidden}
 .reward-fill{height:100%;background:linear-gradient(90deg,var(--green2),var(--green));transition:width 1.2s cubic-bezier(.4,0,.2,1)}
+
 /* ENDPOINTS */
 .ep-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:40px}
 .ep{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;transition:all .2s}
@@ -148,6 +154,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .get{background:rgba(34,197,94,.15);color:var(--green)}.post{background:rgba(59,130,246,.15);color:var(--blue)}
 .ep-p{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text2);flex:1}
 .ep-d{font-size:10px;color:var(--text3)}
+
 /* REWARD DIMS */
 .rw-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:40px}
 .rw{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
@@ -161,6 +168,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .rf-a{background:linear-gradient(90deg,#b45309,var(--amber))}
 .rf-p{background:linear-gradient(90deg,#7e22ce,var(--purple))}
 .rw-desc{font-size:11px;color:var(--text3);line-height:1.5}
+
 /* BUG TYPES */
 .bt-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:40px}
 .bt{display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;transition:all .2s}
@@ -168,10 +176,12 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .bt-dot{width:8px;height:8px;border-radius:50%}
 .bt-name{font-family:'JetBrains Mono',monospace;font-weight:500;color:var(--text2)}
 .bt-count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);margin-left:2px}
+
 /* LOG */
 .log-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;max-height:96px;overflow-y:auto;margin-bottom:40px}
 .log-line{display:flex;gap:8px;margin-bottom:4px;color:var(--text3)}
 .log-ts{color:var(--text3)}.log-ok{color:var(--green)}.log-warn{color:var(--amber)}.log-info{color:var(--blue)}
+
 /* FOOTER */
 .footer{text-align:center;padding:24px 0 32px;border-top:1px solid var(--border)}
 .footer-t{font-size:12px;color:var(--text3);margin-bottom:12px}
@@ -179,6 +189,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 .footer-links{display:flex;justify-content:center;gap:20px}
 .flink{font-size:12px;color:var(--blue);text-decoration:none;font-family:'JetBrains Mono',monospace;opacity:.75;transition:opacity .2s}
 .flink:hover{opacity:1}
+
 @media(max-width:600px){
   h1{font-size:34px}
   .stats{grid-template-columns:1fr 1fr}
@@ -190,6 +201,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
 </head>
 <body>
 <div class="wrap">
+
 <!-- HERO -->
 <div class="hero">
   <div class="hero-bg"></div>
@@ -203,6 +215,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
     <div class="status-chip"><span class="dot dot-amber"></span>3 difficulty tasks</div>
   </div>
 </div>
+
 <!-- STATS -->
 <div class="stats">
   <div class="stat s-green"><div class="stat-num c-green">15</div><div class="stat-label">Bug Snippets</div></div>
@@ -210,6 +223,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
   <div class="stat s-amber"><div class="stat-num c-amber">4</div><div class="stat-label">Reward Dims</div></div>
   <div class="stat s-purple"><div class="stat-num c-purple">1.0</div><div class="stat-label">Max Reward</div></div>
 </div>
+
 <!-- TASKS -->
 <div class="sec">Difficulty Levels</div>
 <div class="tasks">
@@ -244,6 +258,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
     <div class="task-snippets">8 snippets · 4-dim reward</div>
   </div>
 </div>
+
 <!-- LIVE DEMO -->
 <div class="sec">Live API Demo</div>
 <div class="demo-box">
@@ -266,11 +281,13 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
   </div>
   <div class="reward-bar"><div class="reward-fill" id="rewardBar" style="width:0%"></div></div>
 </div>
+
 <!-- LOG -->
 <div class="sec">Agent Activity Log</div>
 <div class="log-box" id="logBox">
   <div class="log-line"><span class="log-ts">00:00</span><span class="log-info">[SYS]</span><span>Environment ready. Waiting for agent actions...</span></div>
 </div>
+
 <!-- ENDPOINTS -->
 <div class="sec">API Endpoints</div>
 <div class="ep-grid">
@@ -281,6 +298,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
   <div class="ep"><span class="ep-m get">GET</span><span class="ep-p">/state</span><span class="ep-d">Current state</span></div>
   <div class="ep"><span class="ep-m get">GET</span><span class="ep-p">/docs</span><span class="ep-d">Swagger UI</span></div>
 </div>
+
 <!-- REWARD DIMS -->
 <div class="sec">Reward Dimensions (Hard Task)</div>
 <div class="rw-grid">
@@ -305,6 +323,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
     <div class="rw-desc">Keyword match (0.5) + length (0.25) + no regression (0.25)</div>
   </div>
 </div>
+
 <!-- BUG TYPES -->
 <div class="sec">Bug Categories</div>
 <div class="bt-row">
@@ -314,6 +333,7 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
   <div class="bt"><span class="bt-dot" style="background:#a855f7"></span><span class="bt-name">null_reference</span><span class="bt-count">2 bugs</span></div>
   <div class="bt"><span class="bt-dot" style="background:#14b8a6"></span><span class="bt-name">exception_handling</span><span class="bt-count">3 bugs</span></div>
 </div>
+
 <!-- FOOTER -->
 <div class="footer">
   <div class="footer-t">Built for <span class="footer-n">OpenEnv Hackathon 2026</span> by <span class="footer-n">NAGUBATHULA JAYA AASHIK</span></div>
@@ -323,7 +343,9 @@ h1 .grad{background:linear-gradient(135deg,#60a5fa,#a855f7,#22c55e);-webkit-back
     <a class="flink" href="/tasks">Tasks JSON</a>
   </div>
 </div>
+
 </div>
+
 <script>
 let step=0;
 const demos=[
@@ -376,7 +398,7 @@ def home():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "env": "vortex_vanguard", "version": "1.0.0"}  # changed
+    return {"status": "healthy", "env": "codesentinel", "version": "1.0.0"}
 
 @app.get("/tasks")
 def list_tasks():
@@ -391,7 +413,7 @@ def list_tasks():
 @app.post("/reset")
 def reset(request: ResetRequest):
     try:
-        env = VortexVanguardEnvironment(task=request.task)  # changed
+        env = CodeSentinelEnvironment(task=request.task)
         _envs[request.task] = env
         obs = env.reset()
         return asdict(obs)
