@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 app = FastAPI(
     title="Vortex Vanguard OpenEnv",
-    description="RL environment where AI agents detect and fix real-world Python code bugs.",
+    description="RL environment where AI agents resolve real customer support tickets using multi-step reasoning.",
     version="1.0.0",
 )
 app.add_middleware(
@@ -53,16 +53,16 @@ class StepRequest(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_env(task: str):
-    from server.environment import CodeSentinelEnvironment
+    from server.environment import VortexVanguardEnvironment
     if task not in _envs:
-        _envs[task] = CodeSentinelEnvironment(task=task)
+        _envs[task] = VortexVanguardEnvironment(task=task)
     return _envs[task]
 
 
 def get_session_env(session_id: str, task: str):
-    from server.environment import CodeSentinelEnvironment
+    from server.environment import VortexVanguardEnvironment
     if session_id not in _sessions:
-        env = CodeSentinelEnvironment(task=task)
+        env = VortexVanguardEnvironment(task=task)
         env.reset()
         _sessions[session_id] = env
     return _sessions[session_id]
@@ -92,22 +92,22 @@ h2{color:#3fb950;font-size:1.2em;margin-bottom:12px}
 .lbl{font-size:.8em;color:#8b949e;margin-top:2px}
 a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 </style></head><body>
-<h1>&#9889; Vortex Vanguard</h1>
-<p class="sub">OpenEnv RL Environment &#8212; AI Code Bug Detection &amp; Auto-Fix</p>
+<h1>⚡ Vortex Vanguard</h1>
+<p class="sub">OpenEnv RL Environment — AI Code Bug Detection &amp; Auto-Fix</p>
 <div class="stats">
   <div class="stat"><div class="num">75+</div><div class="lbl">Bug Snippets</div></div>
   <div class="stat"><div class="num">5</div><div class="lbl">Bug Categories</div></div>
   <div class="stat"><div class="num">3</div><div class="lbl">Difficulty Tasks</div></div>
-  <div class="stat"><div class="num">0.05&#8211;0.95</div><div class="lbl">Score Range</div></div>
+  <div class="stat"><div class="num">0.05–0.95</div><div class="lbl">Score Range</div></div>
 </div>
 <div class="card">
-<h2>&#127919; Tasks</h2>
-<div style="margin:8px 0"><span class="badge easy">EASY</span> Classify bug type only &#8212; 10 snippets</div>
-<div style="margin:8px 0"><span class="badge med">MEDIUM</span> Bug type + severity (1-5) + line number &#8212; 20 snippets</div>
-<div style="margin:8px 0"><span class="badge hard">HARD</span> Bug type + severity + line + write fixed code &#8212; 25 snippets</div>
+<h2>🎯 Tasks</h2>
+<div style="margin:8px 0"><span class="badge easy">EASY</span> Classify bug type only — 10 snippets</div>
+<div style="margin:8px 0"><span class="badge med">MEDIUM</span> Bug type + severity (1-5) + line number — 20 snippets</div>
+<div style="margin:8px 0"><span class="badge hard">HARD</span> Bug type + severity + line + write fixed code — 25 snippets</div>
 </div>
 <div class="card">
-<h2>&#128299; API Endpoints</h2>
+<h2>🔌 API Endpoints</h2>
 <div class="ep">GET  /health</div>
 <div class="ep">GET  /tasks</div>
 <div class="ep">POST /reset</div>
@@ -119,13 +119,13 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 <div class="ep">GET  /validate</div>
 </div>
 <div class="card">
-<h2>&#129504; Bug Categories</h2>
-<p>security &#183; logic &#183; performance &#183; null_reference &#183; exception_handling</p>
+<h2>🧠 Bug Categories</h2>
+<p>security · logic · performance · null_reference · exception_handling</p>
 </div>
 <p style="margin-top:20px">
-<a href="/docs">&#8594; Interactive API Docs</a> &nbsp;|&nbsp;
-<a href="/health">&#8594; Health Check</a> &nbsp;|&nbsp;
-<a href="/validate">&#8594; Validate</a>
+<a href="/docs">→ Interactive API Docs</a> &nbsp;|&nbsp;
+<a href="/health">→ Health Check</a> &nbsp;|&nbsp;
+<a href="/validate">→ Validate</a>
 </p>
 </body></html>"""
 
@@ -183,8 +183,8 @@ async def reset(request: Request):
     except Exception:
         task = "easy"
     try:
-        from server.environment import CodeSentinelEnvironment
-        env = CodeSentinelEnvironment(task=task)
+        from server.environment import VortexVanguardEnvironment
+        env = VortexVanguardEnvironment(task=task)
         _envs[task] = env
         obs = env.reset()
         return asdict(obs)
@@ -240,12 +240,13 @@ def grade_easy_endpoint(session_id: str):
     """Grade the easy task for a given session."""
     try:
         from server.grader import grade_easy, safe_score
-        from data import CODE_SNIPPETS, SNIPPET_INDEX
+        from data import CODE_SNIPPETS
         env = get_session_env(session_id, "easy")
         if env._history:
             scores = []
             for h in env._history:
                 sid = h.get("snippet_id", "c001")
+                from data import SNIPPET_INDEX
                 snippet = SNIPPET_INDEX.get(sid, CODE_SNIPPETS[0])
                 action_dict = {
                     "bug_type": h.get("agent_bug_type", "logic"),
@@ -330,19 +331,19 @@ def grade_hard_endpoint(session_id: str):
 def validate():
     """Validate the environment is working correctly."""
     try:
-        from server.environment import CodeSentinelEnvironment
+        from server.environment import VortexVanguardEnvironment
         from models import CodeReviewAction
         from server.grader import grade_easy, grade_medium, grade_hard
 
         results = {}
         for task in ["easy", "medium", "hard"]:
-            env = CodeSentinelEnvironment(task=task)
+            env = VortexVanguardEnvironment(task=task)
             obs = env.reset()
             assert obs.snippet_id != "done"
             action = CodeReviewAction(bug_type="logic", severity=3, bug_line=1)
             obs2, reward, done, info = env.step(action)
             assert 0.0 < reward < 1.0, f"reward {reward} out of range"
-            results[task] = {"reward": round(reward, 4), "status": "pass"}
+            results[task] = {"reward": reward, "status": "pass"}
 
         return {"status": "valid", "env": "vortexvanguard", "tasks": results}
     except Exception as e:
