@@ -1,5 +1,5 @@
 """
-server/app.py — CodeSentinel FastAPI Server
+server/app.py — Vortex Vanguard FastAPI Server
 ============================================
 Includes /grade/easy, /grade/medium, /grade/hard endpoints
 required by the OpenEnv validator.
@@ -53,16 +53,16 @@ class StepRequest(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_env(task: str):
-    from server.environment import CodeSentinelEnvironment
+    from server.environment import VortexVanguardEnvironment
     if task not in _envs:
-        _envs[task] = CodeSentinelEnvironment(task=task)
+        _envs[task] = VortexVanguardEnvironment(task=task)
     return _envs[task]
 
 
 def get_session_env(session_id: str, task: str):
-    from server.environment import CodeSentinelEnvironment
+    from server.environment import VortexVanguardEnvironment
     if session_id not in _sessions:
-        env = CodeSentinelEnvironment(task=task)
+        env = VortexVanguardEnvironment(task=task)
         env.reset()
         _sessions[session_id] = env
     return _sessions[session_id]
@@ -73,7 +73,7 @@ def get_session_env(session_id: str, task: str):
 @app.get("/", response_class=HTMLResponse)
 def home():
     return """<!DOCTYPE html>
-<html><head><title>CodeSentinel OpenEnv</title>
+<html><head><title>Vortex Vanguard OpenEnv</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;padding:32px;max-width:960px;margin:0 auto}
@@ -92,7 +92,7 @@ h2{color:#3fb950;font-size:1.2em;margin-bottom:12px}
 .lbl{font-size:.8em;color:#8b949e;margin-top:2px}
 a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 </style></head><body>
-<h1>🔍 CodeSentinel</h1>
+<h1>⚡ Vortex Vanguard</h1>
 <p class="sub">OpenEnv RL Environment — AI Code Bug Detection &amp; Auto-Fix</p>
 <div class="stats">
   <div class="stat"><div class="num">75+</div><div class="lbl">Bug Snippets</div></div>
@@ -134,7 +134,7 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "env": "codesentinel", "version": "1.0.0"}
+    return {"status": "healthy", "env": "vortexvanguard", "version": "1.0.0"}
 
 
 @app.get("/tasks")
@@ -148,7 +148,7 @@ def list_tasks():
                 "difficulty": "easy",
                 "num_snippets": 10,
                 "valid_bug_types": ["security", "logic", "performance", "null_reference", "exception_handling"],
-                "grader": "codesentinel.server.grader:grade_easy",
+                "grader": "vortexvanguard.server.grader:grade_easy",
             },
             {
                 "id": "medium",
@@ -157,7 +157,7 @@ def list_tasks():
                 "difficulty": "medium",
                 "num_snippets": 20,
                 "valid_bug_types": ["security", "logic", "performance", "null_reference", "exception_handling"],
-                "grader": "codesentinel.server.grader:grade_medium",
+                "grader": "vortexvanguard.server.grader:grade_medium",
             },
             {
                 "id": "hard",
@@ -166,7 +166,7 @@ def list_tasks():
                 "difficulty": "hard",
                 "num_snippets": 25,
                 "valid_bug_types": ["security", "logic", "performance", "null_reference", "exception_handling"],
-                "grader": "codesentinel.server.grader:grade_hard",
+                "grader": "vortexvanguard.server.grader:grade_hard",
             },
         ]
     }
@@ -183,8 +183,8 @@ async def reset(request: Request):
     except Exception:
         task = "easy"
     try:
-        from server.environment import CodeSentinelEnvironment
-        env = CodeSentinelEnvironment(task=task)
+        from server.environment import VortexVanguardEnvironment
+        env = VortexVanguardEnvironment(task=task)
         _envs[task] = env
         obs = env.reset()
         return asdict(obs)
@@ -260,7 +260,7 @@ def grade_easy_endpoint(session_id: str):
             "session_id": session_id,
             "task": "easy",
             "score": score,
-            "grader": "codesentinel.server.grader:grade_easy",
+            "grader": "vortexvanguard.server.grader:grade_easy",
         }
     except Exception as e:
         return {"session_id": session_id, "task": "easy", "score": 0.50, "error": str(e)}
@@ -290,7 +290,7 @@ def grade_medium_endpoint(session_id: str):
             "session_id": session_id,
             "task": "medium",
             "score": score,
-            "grader": "codesentinel.server.grader:grade_medium",
+            "grader": "vortexvanguard.server.grader:grade_medium",
         }
     except Exception as e:
         return {"session_id": session_id, "task": "medium", "score": 0.50, "error": str(e)}
@@ -321,7 +321,7 @@ def grade_hard_endpoint(session_id: str):
             "session_id": session_id,
             "task": "hard",
             "score": score,
-            "grader": "codesentinel.server.grader:grade_hard",
+            "grader": "vortexvanguard.server.grader:grade_hard",
         }
     except Exception as e:
         return {"session_id": session_id, "task": "hard", "score": 0.50, "error": str(e)}
@@ -331,13 +331,13 @@ def grade_hard_endpoint(session_id: str):
 def validate():
     """Validate the environment is working correctly."""
     try:
-        from server.environment import CodeSentinelEnvironment
+        from server.environment import VortexVanguardEnvironment
         from models import CodeReviewAction
         from server.grader import grade_easy, grade_medium, grade_hard
 
         results = {}
         for task in ["easy", "medium", "hard"]:
-            env = CodeSentinelEnvironment(task=task)
+            env = VortexVanguardEnvironment(task=task)
             obs = env.reset()
             assert obs.snippet_id != "done"
             action = CodeReviewAction(bug_type="logic", severity=3, bug_line=1)
@@ -345,7 +345,7 @@ def validate():
             assert 0.0 < reward < 1.0, f"reward {reward} out of range"
             results[task] = {"reward": reward, "status": "pass"}
 
-        return {"status": "valid", "tasks": results}
+        return {"status": "valid", "env": "vortexvanguard", "tasks": results}
     except Exception as e:
         return JSONResponse(
             status_code=500,
