@@ -187,7 +187,18 @@ async def reset(request: Request):
         env = VortexVanguardEnvironment(task=task)
         _envs[task] = env
         obs = env.reset()
-        return asdict(obs)
+        return {
+    "observation": {
+        "snippet_id": obs.snippet_id,
+        "title": obs.title,
+        "language": obs.language,
+        "code": obs.code,
+        "task_description": obs.task_description,
+        "step": obs.step,
+        "total_snippets": obs.total_snippets,
+        "done": obs.done,
+    }
+}
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
@@ -220,7 +231,21 @@ async def step(request: Request):
             bug_line=bug_line, fixed_code=fixed_code, explanation=explanation,
         )
         obs, reward, done, info = env.step(action)
-        return {"observation": asdict(obs), "reward": reward, "done": done, "info": info}
+       return {
+    "observation": {
+        "snippet_id": obs.snippet_id,
+        "title": obs.title,
+        "language": obs.language,
+        "code": obs.code,
+        "task_description": obs.task_description,
+        "step": obs.step,
+        "total_snippets": obs.total_snippets,
+        "done": obs.done,
+    },
+    "reward": float(reward),
+    "done": bool(done),
+    "info": info,
+}
     except RuntimeError as e:
         return JSONResponse(status_code=400, content={"detail": str(e)})
     except Exception as e:
