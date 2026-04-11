@@ -32,7 +32,6 @@ GRADERS = {
 class VortexVanguardEnvironment:
     """
     🌪️ Vortex Vanguard RL Environment
-
     Agent reviews buggy Python code snippets:
       easy   → classify bug type
       medium → bug type + severity + line
@@ -140,8 +139,8 @@ class VortexVanguardEnvironment:
     # ─────────────────────────────────────────────
 
     @property
-    def state(self) -> CodeSentinelState:
-        return CodeSentinelState(
+    def state(self) -> VortexVanguardState:
+        return VortexVanguardState(
             episode_id=self._episode_id,
             step_count=self._step_count,
             task=self.task,
