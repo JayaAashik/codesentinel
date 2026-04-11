@@ -1,24 +1,23 @@
 ---
-title: CodeSentinel OpenEnv
-emoji: 🔍
-colorFrom: green
+title: Vortex Vanguard OpenEnv
+emoji: ⚡
+colorFrom: purple
 colorTo: blue
 sdk: docker
 pinned: false
 tags:
   - openenv
-  - code-review
-  - security
+  - customer-support
   - reinforcement-learning
   - real-world
 ---
 
-# 🔍 CodeSentinel — Code Bug Detection RL Environment
+# ⚡ Vortex Vanguard — Customer Support RL Environment
 
 An OpenEnv environment where AI agents learn to detect and fix real-world Python code bugs.
 
 ## 🎯 What Makes This Unique
-Unlike classification environments, CodeSentinel requires agents to:
+Unlike classification environments, Vortex Vanguard requires agents to:
 - READ and UNDERSTAND code
 - IDENTIFY bug category from 5 types
 - RATE severity from 1 (critical) to 5 (info)
