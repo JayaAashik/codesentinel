@@ -425,6 +425,7 @@ def reset(request: ResetRequest):
 @app.post("/step")
 def step(request: StepRequest):
     env = get_env(request.task)
+
     try:
         action = CodeReviewAction(
             bug_type=request.bug_type,
@@ -433,7 +434,9 @@ def step(request: StepRequest):
             fixed_code=request.fixed_code,
             explanation=request.explanation,
         )
+
         obs, reward, done, info = env.step(action)
+
         return {
             "observation": {
                 "snippet_id": obs.snippet_id,
@@ -449,8 +452,10 @@ def step(request: StepRequest):
             "done": bool(done),
             "info": info,
         }
+
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
