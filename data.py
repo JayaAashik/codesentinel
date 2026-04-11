@@ -952,9 +952,8 @@ SUPPORT_TASK_CONFIGS = {
 # UNIFIED TASK CONFIGS (for backward compatibility)
 # ==============================================================================
 
-# Default TASK_CONFIGS points to CodeSentinel for backward compatibility
-TASK_CONFIGS = CODE_TASK_CONFIGS
-# backward compatibility
-CODE_SNIPPETS = CODESNIPPETS
-SNIPPET_INDEX = SNIPPETINDEX
-TASK_CONFIGS = CODETASKCONFIGS
+# 🔥 BACKWARD COMPATIBILITY FIX
+
+CODESNIPPETS = CODE_SNIPPETS
+SNIPPETINDEX = SNIPPET_INDEX
+TASK_CONFIGS = CODETASKCONFIGS if 'CODETASKCONFIGS' in globals() else {}
