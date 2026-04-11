@@ -1,5 +1,5 @@
 """
-server/environment.py — Vortex Vanguard RL Environment (HYBRID FIXED)
+server/environment.py — Vortex Vanguard RL Environment
 """
 
 import uuid
@@ -9,19 +9,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import Dict
-
-from data import (
-    SNIPPETINDEX, CODESNIPPETS, CODETASKCONFIGS,
-    TICKETINDEX, TICKETS, SUPPORTTASKCONFIGS,
-    KNOWLEDGEBASE
-)
-
+from data import SNIPPET_INDEX, TASK_CONFIGS
 from models import CodeReviewAction, CodeObservation, CodeSentinelState
 from server.grader import grade_easy, grade_medium, grade_hard, safe_score
-
-
-# ✅ BACKWARD COMPATIBILITY
-TASK_CONFIGS = CODETASKCONFIGS
 
 
 # ─────────────────────────────────────────────
@@ -40,6 +30,14 @@ GRADERS = {
 # ─────────────────────────────────────────────
 
 class VortexVanguardEnvironment:
+    """
+    🌪️ Vortex Vanguard RL Environment
+
+    Agent reviews buggy Python code snippets:
+      easy   → classify bug type
+      medium → bug type + severity + line
+      hard   → bug type + fix + explanation
+    """
 
     def __init__(self, task: str = "easy"):
         if task not in TASK_CONFIGS:
@@ -67,14 +65,7 @@ class VortexVanguardEnvironment:
         self._done = False
 
         ids = self.config["snippet_ids"]
-
-        # ✅ HYBRID LOADING
-        self._snippets = []
-        for sid in ids:
-            if sid.startswith("c") and sid in SNIPPETINDEX:
-                self._snippets.append(SNIPPETINDEX[sid])
-            elif sid.startswith("t") and sid in TICKETINDEX:
-                self._snippets.append(TICKETINDEX[sid])
+        self._snippets = [SNIPPET_INDEX[sid] for sid in ids if sid in SNIPPET_INDEX]
 
         return self._make_observation()
 
@@ -85,18 +76,8 @@ class VortexVanguardEnvironment:
             raise RuntimeError("Episode over. Call reset() first.")
 
         try:
-            current = self._snippets[self._step_count]
-            snippet_id = current["id"]
-
-            # ✅ HYBRID SWITCH
-            if snippet_id.startswith("c"):
-                current = SNIPPETINDEX[snippet_id]
-
-            elif snippet_id.startswith("t"):
-                current = TICKETINDEX[snippet_id]
-
-            # ✅ ACTION DICT
-            action_dict = {
+           current = self._snippets[self._step_count]
+           action_dict = {
                 "bug_type": action.bug_type,
                 "severity": action.severity,
                 "bug_line": action.bug_line,
@@ -108,9 +89,8 @@ class VortexVanguardEnvironment:
             reward = grader_fn(action_dict, current)
             reward = safe_score(reward)
 
-            # ✅ UPDATE STATS
+            # Update stats
             self._cumulative_reward += reward
-
             if reward >= 0.65:
                 self._bugs_correct += 1
 
@@ -118,7 +98,7 @@ class VortexVanguardEnvironment:
                 "step": self._step_count,
                 "snippet_id": current["id"],
                 "reward": reward,
-                "correct_bug_type": current.get("bug_type", "unknown"),
+                "correct_bug_type": current["bug_type"],
                 "agent_bug_type": action.bug_type,
             })
 
@@ -127,10 +107,13 @@ class VortexVanguardEnvironment:
 
             obs = self._make_observation()
             obs.reward = reward
-            obs.feedback = f"reward={reward:.4f}"
+            obs.feedback = f"reward={reward:.4f} correct_type={current['bug_type']}"
 
             info = {
                 "snippet_id": current["id"],
+                "correct_bug_type": current["bug_type"],
+                "correct_severity": current["severity"],
+                "correct_line": current["bug_line"],
                 "reward": reward,
                 "cumulative_reward": round(self._cumulative_reward, 4),
                 "bugs_correct": self._bugs_correct,
@@ -142,15 +125,16 @@ class VortexVanguardEnvironment:
             raise
 
         except Exception as e:
-            # SAFE FALLBACK
+            # fallback safe step
             self._step_count += 1
             self._done = self._step_count >= len(self._snippets)
 
             obs = self._make_observation()
+            fallback_reward = 0.50
 
-            return obs, 0.50, self._done, {
+            return obs, fallback_reward, self._done, {
                 "error": str(e),
-                "reward": 0.50
+                "reward": fallback_reward
             }
 
     # ─────────────────────────────────────────────
@@ -172,7 +156,6 @@ class VortexVanguardEnvironment:
     # ─────────────────────────────────────────────
 
     def _make_observation(self) -> CodeObservation:
-
         if self._done or self._step_count >= len(self._snippets):
             return CodeObservation(
                 snippet_id="done",
@@ -189,9 +172,9 @@ class VortexVanguardEnvironment:
 
         return CodeObservation(
             snippet_id=s["id"],
-            title=s.get("title", "Unknown"),
-            language=s.get("language", "python"),
-            code=s.get("code", ""),
+            title=s["title"],
+            language=s["language"],
+            code=s["code"],
             task_description=self.config["description"],
             step=self._step_count,
             total_snippets=len(self._snippets),
@@ -201,7 +184,7 @@ class VortexVanguardEnvironment:
     # ─────────────────────────────────────────────
 
     def grade_episode(self) -> Dict:
-
+        """Return final episode score"""
         if not self._history:
             return {"score": 0.50, "task": self.task, "steps": 0}
 
