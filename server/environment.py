@@ -76,8 +76,9 @@ class VortexVanguardEnvironment:
             raise RuntimeError("Episode over. Call reset() first.")
 
         try:
-           current = self._snippets[self._step_count]
-           action_dict = {
+            current = self._snippets[self._step_count]
+
+            action_dict = {
                 "bug_type": action.bug_type,
                 "severity": action.severity,
                 "bug_line": action.bug_line,
@@ -91,16 +92,16 @@ class VortexVanguardEnvironment:
 
             # Update stats
             self._cumulative_reward += reward
+
             if reward >= 0.65:
                 self._bugs_correct += 1
-
-            self._history.append({
-                "step": self._step_count,
-                "snippet_id": current["id"],
-                "reward": reward,
-                "correct_bug_type": current["bug_type"],
-                "agent_bug_type": action.bug_type,
-            })
+                self._history.append({
+                    "step": self._step_count,
+                    "snippet_id": current["id"],
+                    "reward": reward,
+                    "correct_bug_type": current["bug_type"],
+                    "agent_bug_type": action.bug_type,
+                })
 
             self._step_count += 1
             self._done = self._step_count >= len(self._snippets)
@@ -125,7 +126,6 @@ class VortexVanguardEnvironment:
             raise
 
         except Exception as e:
-            # fallback safe step
             self._step_count += 1
             self._done = self._step_count >= len(self._snippets)
 
