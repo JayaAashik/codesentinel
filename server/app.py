@@ -14,7 +14,6 @@ from dataclasses import asdict
 from typing import Optional
 import uvicorn
 from fastapi import FastAPI, Request
-from server.environment import VortexVanguardEnvironment
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
