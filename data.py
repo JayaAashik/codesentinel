@@ -1,5 +1,5 @@
 """
-Vortex Vanguard Data — 75+ Real-World Python Bug Snippets
+CodeSentinel Data — 75+ Real-World Python Bug Snippets
 =======================================================
 Hybrid: 15 expert-crafted base snippets + 60 auto-generated variants.
 Covers 5 bug categories across easy/medium/hard difficulty splits.
