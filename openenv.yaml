@@ -3,36 +3,56 @@ version: "1.0.0"
 
 description: >
   CodeSentinel is a reinforcement learning environment where AI agents analyze
-  real-world Python code to detect and fix bugs. The agent must classify bug type,
-  estimate severity, locate the bug line, and generate corrected code.
-  Supports 70+ dynamically generated code snippets for scalable evaluation.
+  real-world Python code to detect and fix security vulnerabilities, logic errors,
+  performance issues, null reference bugs, and exception handling problems.
+  The agent must classify bug type, estimate severity (1-5), locate the bug line,
+  and generate corrected code. Supports 75+ dynamically-structured code snippets
+  for scalable multi-difficulty evaluation.
+
 tags:
   - openenv
   - reinforcement-learning
   - code-review
   - security
   - real-world
+  - nlp
+  - multi-objective
 
-dataset: "70+ dynamically generated code snippets"
+dataset: "75+ real-world and auto-generated Python code bug snippets"
+
+app: codesentinel.server.app:app
+port: 7860
 
 tasks:
-  - name: easy
-    description: "Identify bug type only"
+  - id: easy
+    name: easy
+    description: "Identify the bug TYPE in each code snippet."
     difficulty: easy
     max_steps: 10
-    reward_range: [-1.0, 1.0]
+    reward_range: [0.05, 0.95]
+    grader: "codesentinel.server.grader:grade_easy"
+    graders:
+      - "codesentinel.server.grader:grade_easy"
 
-  - name: medium
-    description: "Identify bug type, severity, and line"
+  - id: medium
+    name: medium
+    description: "Identify bug TYPE + SEVERITY (1=critical..5=info) + LINE number."
     difficulty: medium
-    max_steps: 25
-    reward_range: [-1.0, 1.0]
+    max_steps: 20
+    reward_range: [0.05, 0.95]
+    grader: "codesentinel.server.grader:grade_medium"
+    graders:
+      - "codesentinel.server.grader:grade_medium"
 
-  - name: hard
-    description: "Full bug detection and fix generation"
+  - id: hard
+    name: hard
+    description: "Identify bug TYPE + SEVERITY + LINE + write the complete FIXED code."
     difficulty: hard
-    max_steps: 35
-    reward_range: [-1.0, 1.0]
+    max_steps: 25
+    reward_range: [0.05, 0.95]
+    grader: "codesentinel.server.grader:grade_hard"
+    graders:
+      - "codesentinel.server.grader:grade_hard"
 
 observation_space:
   type: object
@@ -43,6 +63,7 @@ observation_space:
       type: string
     language:
       type: string
+      enum: [python]
     code:
       type: string
     task_description:
@@ -65,37 +86,42 @@ action_space:
         - performance
         - null_reference
         - exception_handling
-
     severity:
       type: integer
       range: [1, 5]
-
     bug_line:
       type: integer
-
+      minimum: 1
     fixed_code:
       type: string
       required: false
-
     explanation:
       type: string
       required: false
 
 reward:
   type: float
-  range: [-1.0, 1.0]
+  range: [0.05, 0.95]
+  description: >
+    Multi-dimensional grading: bug type accuracy, severity accuracy,
+    line localization, and fix code quality. All scores strictly in (0, 1).
 
 evaluation:
-  success_threshold: 0.6
+  success_threshold: 0.60
   metrics:
     - bug_type_accuracy
     - severity_accuracy
     - line_accuracy
     - fix_quality
+    - explanation_quality
 
 endpoints:
   health: GET /health
-  tasks:  GET /tasks
-  reset:  POST /reset
-  step:   POST /step
-  state:  GET /state
+  tasks: GET /tasks
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  grade_easy: GET /grade/easy/{session_id}
+  grade_medium: GET /grade/medium/{session_id}
+  grade_hard: GET /grade/hard/{session_id}
+  validate: GET /validate
