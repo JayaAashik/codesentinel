@@ -1,141 +1,217 @@
 """
-server/grader.py — CodeSentinel Graders
-========================================
-These are the programmatic graders for each task difficulty.
-The validator calls these to verify scores are in (0.0, 1.0).
+server/grader.py — Vortex Vanguard Graders
+===========================================
+Multi-dimensional scoring:
+  - Action correctness
+  - Knowledge base accuracy
+  - Priority correctness
+  - Reply quality (tone + empathy + policy compliance + keywords)
+  - Empathy score
 
-Each grader receives an action dict and a snippet dict,
-and returns a float strictly between 0.0 and 1.0.
+All scores strictly in (0.05, 0.95).
 """
-
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from typing import Dict, Any
-
 
 def safe_score(value: float) -> float:
-    """Clamp score to strictly (0.0, 1.0) — never exactly 0 or 1."""
+    """Clamp to strictly (0.0, 1.0) — never exactly 0 or 1."""
     return round(max(0.05, min(0.95, float(value))), 4)
 
 
-def _score_bug_type(action: Dict, snippet: Dict) -> float:
-    agent_type = str(action.get("bug_type", "")).lower().strip().replace(" ", "_")
-    correct_type = str(snippet.get("bug_type", "")).lower().strip()
-    if agent_type == correct_type:
+# ── Action scoring ────────────────────────────────────────────────────────────
+
+def _score_action(action: dict, ticket: dict) -> float:
+    agent_action = str(action.get("action_type", "")).lower().strip()
+    correct_action = str(ticket.get("correct_action", "")).lower().strip()
+
+    if agent_action == correct_action:
         return 0.85
-    # Partial credit for related types
-    related = {
-        "security": ["exception_handling"],
-        "exception_handling": ["null_reference"],
-        "null_reference": ["exception_handling"],
-        "logic": ["performance"],
-        "performance": ["logic"],
+
+    # Partial credit for reasonable alternatives
+    reasonable = {
+        "escalate": ["gather_info"],
+        "refund":   ["escalate", "resolve"],
+        "resolve":  ["gather_info"],
+        "gather_info": ["resolve"],
+        "replace":  ["refund", "escalate"],
     }
-    if correct_type in related.get(agent_type, []):
-        return 0.35
-    return 0.12
+    if agent_action in reasonable.get(correct_action, []):
+        return 0.45
+
+    return 0.10
 
 
-def _score_severity(action: Dict, snippet: Dict) -> float:
-    try:
-        agent_sev = int(action.get("severity", 3))
-        correct_sev = int(snippet.get("severity", 3))
-        diff = abs(agent_sev - correct_sev)
-        if diff == 0:
-            return 0.85
-        elif diff == 1:
-            return 0.55
-        elif diff == 2:
-            return 0.30
-        else:
-            return 0.10
-    except Exception:
-        return 0.30
+# ── KB search scoring ─────────────────────────────────────────────────────────
+
+def _score_kb(action: dict, ticket: dict) -> float:
+    agent_kb = str(action.get("kb_key", "")).lower().strip()
+    correct_kb = str(ticket.get("correct_kb_key", "")).lower().strip()
+
+    if not agent_kb:
+        return 0.20
+
+    if agent_kb == correct_kb:
+        return 0.85
+
+    # Partial credit for related KB
+    related_kbs = {
+        "refund_policy":      ["cancellation_policy", "discount_policy"],
+        "technical_escalation": ["vip_policy"],
+        "vip_policy":         ["technical_escalation", "refund_policy"],
+        "cancellation_policy": ["refund_policy"],
+    }
+    if agent_kb in related_kbs.get(correct_kb, []):
+        return 0.40
+
+    return 0.15
 
 
-def _score_line(action: Dict, snippet: Dict) -> float:
-    try:
-        agent_line = int(action.get("bug_line", 1))
-        correct_line = int(snippet.get("bug_line", 1))
-        diff = abs(agent_line - correct_line)
-        if diff == 0:
-            return 0.85
-        elif diff == 1:
-            return 0.50
-        elif diff <= 2:
-            return 0.25
-        else:
-            return 0.10
-    except Exception:
+# ── Priority scoring ──────────────────────────────────────────────────────────
+
+def _score_priority(action: dict, ticket: dict) -> float:
+    priority_map = {"low": 0, "medium": 1, "high": 2, "urgent": 3}
+    agent_p = str(action.get("priority", "medium")).lower()
+    correct_p = str(ticket.get("correct_priority", "medium")).lower()
+
+    a_val = priority_map.get(agent_p, 1)
+    c_val = priority_map.get(correct_p, 1)
+    diff = abs(a_val - c_val)
+
+    if diff == 0:
+        return 0.85
+    elif diff == 1:
+        return 0.55
+    elif diff == 2:
         return 0.25
-
-
-def _score_fix(action: Dict, snippet: Dict) -> float:
-    fixed_code = action.get("fixed_code", "") or ""
-    if len(fixed_code.strip()) < 5:
+    else:
         return 0.10
 
-    fixed_lower = fixed_code.lower()
-    keywords = snippet.get("fix_keywords", [])
 
-    if keywords:
-        matches = sum(1 for kw in keywords if str(kw).lower() in fixed_lower)
-        kw_score = min(0.80, matches / max(len(keywords), 1) * 1.6)
+# ── Reply quality scoring ─────────────────────────────────────────────────────
+
+def _score_reply(action: dict, ticket: dict) -> float:
+    reply = str(action.get("reply", "") or "")
+    if len(reply.strip()) < 20:
+        return 0.10
+
+    reply_lower = reply.lower()
+    score = 0.0
+
+    # 1. Keyword match (40%)
+    good_keywords = ticket.get("good_reply_keywords", [])
+    if good_keywords:
+        matches = sum(1 for kw in good_keywords if kw.lower() in reply_lower)
+        kw_score = min(0.85, matches / max(len(good_keywords), 1) * 1.7)
     else:
-        kw_score = 0.35
+        kw_score = 0.50
+    score += kw_score * 0.40
 
-    correct_fix = snippet.get("fixed_code", "")
-    if correct_fix:
-        c_lines = len(correct_fix.strip().split("\n"))
-        s_lines = len(fixed_code.strip().split("\n"))
-        diff = abs(c_lines - s_lines)
-        len_score = 0.80 if diff <= 2 else 0.40
+    # 2. Professional tone (20%)
+    professional = ["thank you", "appreciate", "understand", "apologize", "sorry",
+                    "assist", "help", "resolve", "ensure", "please", "team"]
+    tone_matches = sum(1 for w in professional if w in reply_lower)
+    tone_score = min(0.85, tone_matches / 3.0)
+    score += tone_score * 0.20
+
+    # 3. Empathy (20%)
+    empathy_words = ["understand", "frustrat", "inconvenien", "sorry", "apologize",
+                     "appreciate your patience", "value you", "important to us"]
+    empathy_score = 0.80 if any(w in reply_lower for w in empathy_words) else 0.20
+    score += empathy_score * 0.20
+
+    # 4. Length (10%) — 30-200 words is ideal for support reply
+    word_count = len(reply.split())
+    if 30 <= word_count <= 200:
+        length_score = 0.85
+    elif 15 <= word_count < 30:
+        length_score = 0.55
     else:
-        len_score = 0.50
+        length_score = 0.25
+    score += length_score * 0.10
 
-    explanation = action.get("explanation", "") or ""
-    expl_score = 0.70 if len(explanation.strip()) > 10 else 0.30
+    # 5. Customer name used (10%)
+    customer_name = ticket.get("customer_name", "").split()[0].lower()
+    name_score = 0.80 if customer_name in reply_lower else 0.30
+    score += name_score * 0.10
 
-    final = kw_score * 0.50 + len_score * 0.30 + expl_score * 0.20
-    return round(max(0.10, min(0.85, final)), 4)
+    return round(max(0.10, min(0.85, score)), 4)
 
 
-def grade_easy(action: Dict, snippet: Dict) -> float:
+# ── Empathy scoring ───────────────────────────────────────────────────────────
+
+def _score_empathy(action: dict, ticket: dict) -> float:
+    reply = str(action.get("reply", "") or "")
+    tone = str(action.get("tone", "") or "").lower()
+    sentiment = ticket.get("sentiment", "neutral")
+
+    empathy_score = 0.40
+
+    # Tone matches sentiment severity
+    tone_map = {
+        "angry": ["apologetic"],
+        "frustrated": ["apologetic", "empathetic"],
+        "neutral": ["professional", "helpful", "friendly"],
+        "happy": ["friendly", "enthusiastic"],
+    }
+    expected_tones = tone_map.get(sentiment, ["professional"])
+    if tone in expected_tones:
+        empathy_score += 0.35
+
+    # Check reply for empathy signals
+    empathy_words = ["understand", "sorry", "apologize", "frustrat",
+                     "value", "appreciate", "important", "priority"]
+    reply_lower = reply.lower()
+    if any(w in reply_lower for w in empathy_words):
+        empathy_score += 0.20
+
+    # Escalation awareness
+    if ticket.get("requires_escalation") and action.get("action_type") == "escalate":
+        empathy_score += 0.10
+
+    return safe_score(empathy_score)
+
+
+# ── Public grader functions ───────────────────────────────────────────────────
+
+def grade_easy(action: dict, ticket: dict) -> float:
     """
-    Easy grader: only bug_type classification matters.
-    Score is 0.85 if correct, 0.12 if wrong, with partial credit.
+    Easy: Only action_type matters.
+    Correct action = 0.85, partial credit = 0.45, wrong = 0.10
     """
-    score = _score_bug_type(action, snippet)
+    score = _score_action(action, ticket)
     return safe_score(score)
 
 
-def grade_medium(action: Dict, snippet: Dict) -> float:
+def grade_medium(action: dict, ticket: dict) -> float:
     """
-    Medium grader: bug_type (50%) + severity (25%) + line (25%).
+    Medium: action (40%) + kb_key (30%) + priority (30%)
     """
-    type_score = _score_bug_type(action, snippet)
-    sev_score = _score_severity(action, snippet)
-    line_score = _score_line(action, snippet)
+    action_score = _score_action(action, ticket)
+    kb_score = _score_kb(action, ticket)
+    priority_score = _score_priority(action, ticket)
 
-    total = type_score * 0.50 + sev_score * 0.25 + line_score * 0.25
+    total = action_score * 0.40 + kb_score * 0.30 + priority_score * 0.30
     return safe_score(total)
 
 
-def grade_hard(action: Dict, snippet: Dict) -> float:
+def grade_hard(action: dict, ticket: dict) -> float:
     """
-    Hard grader: bug_type (25%) + severity (15%) + line (15%) + fix (45%).
+    Hard: action (25%) + kb (15%) + reply (35%) + priority (10%) + empathy (15%)
+    Multi-dimensional scoring that rewards both technical accuracy and human skills.
     """
-    type_score = _score_bug_type(action, snippet)
-    sev_score = _score_severity(action, snippet)
-    line_score = _score_line(action, snippet)
-    fix_score = _score_fix(action, snippet)
+    action_score = _score_action(action, ticket)
+    kb_score = _score_kb(action, ticket)
+    priority_score = _score_priority(action, ticket)
+    reply_score = _score_reply(action, ticket)
+    empathy_score = _score_empathy(action, ticket)
 
     total = (
-        type_score * 0.25
-        + sev_score * 0.15
-        + line_score * 0.15
-        + fix_score * 0.45
+        action_score   * 0.25
+        + kb_score     * 0.15
+        + reply_score  * 0.35
+        + priority_score * 0.10
+        + empathy_score  * 0.15
     )
     return safe_score(total)
