@@ -12,6 +12,8 @@ All scores strictly in (0.05, 0.95).
 """
 import os
 import sys
+from data import SNIPPETINDEX
+from data import TICKETINDEX, KNOWLEDGEBASE
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
