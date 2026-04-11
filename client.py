@@ -1,6 +1,6 @@
 import requests
 
-class CodeSentinelClient:
+class VortexVanguardClient:  # changed
     def __init__(self, base_url="http://localhost:7860", timeout=5):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
