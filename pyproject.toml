@@ -3,6 +3,7 @@ name = "codesentinel"
 version = "1.0.0"
 description = "CodeSentinel - AI Code Bug Detection RL Environment"
 requires-python = ">=3.11"
+
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.29.0",
@@ -14,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "server.app:main"
+server = "main:app"
 
 [build-system]
 requires = ["hatchling"]
