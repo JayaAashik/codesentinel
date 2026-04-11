@@ -56,7 +56,7 @@ class CodeObservation:
 
 
 @dataclass
-class CodeSentinelState:
+class VortexVanguardState:  # changed
     episode_id: Optional[str]
     step_count: int
     task: str
