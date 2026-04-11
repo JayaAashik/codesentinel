@@ -1,8 +1,8 @@
-name: vortex-vanguard   # changed
+name: codesentinel
 version: "1.0.0"
 
 description: >
-  Vortex Vanguard is a reinforcement learning environment where AI agents analyze
+  CodeSentinel is a reinforcement learning environment where AI agents analyze
   real-world Python code to detect and fix security vulnerabilities, logic errors,
   performance issues, null reference bugs, and exception handling problems.
   The agent must classify bug type, estimate severity (1-5), locate the bug line,
@@ -20,7 +20,7 @@ tags:
 
 dataset: "75+ real-world and auto-generated Python code bug snippets"
 
-app: vortex_vanguard.server.app:app   # changed
+app: codesentinel.server.app:app
 port: 7860
 
 tasks:
@@ -30,9 +30,9 @@ tasks:
     difficulty: easy
     max_steps: 10
     reward_range: [0.05, 0.95]
-    grader: "vortex_vanguard.server.grader:grade_easy"   # changed
+    grader: "codesentinel.server.grader:grade_easy"
     graders:
-      - "vortex_vanguard.server.grader:grade_easy"       # changed
+      - "codesentinel.server.grader:grade_easy"
 
   - id: medium
     name: medium
@@ -40,9 +40,9 @@ tasks:
     difficulty: medium
     max_steps: 20
     reward_range: [0.05, 0.95]
-    grader: "vortex_vanguard.server.grader:grade_medium"   # changed
+    grader: "codesentinel.server.grader:grade_medium"
     graders:
-      - "vortex_vanguard.server.grader:grade_medium"       # changed
+      - "codesentinel.server.grader:grade_medium"
 
   - id: hard
     name: hard
@@ -50,9 +50,9 @@ tasks:
     difficulty: hard
     max_steps: 25
     reward_range: [0.05, 0.95]
-    grader: "vortex_vanguard.server.grader:grade_hard"   # changed
+    grader: "codesentinel.server.grader:grade_hard"
     graders:
-      - "vortex_vanguard.server.grader:grade_hard"       # changed
+      - "codesentinel.server.grader:grade_hard"
 
 observation_space:
   type: object
