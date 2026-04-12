@@ -425,6 +425,42 @@ async def review_complete(request: Request):
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
+@app.get("/demo")
+def demo():
+    """Returns a sample interaction showing the full RL loop."""
+    from server.environment import CodeSentinelEnvironment
+    from models import CodeReviewAction
+    from data import CODE_SNIPPETS
+
+    env = CodeSentinelEnvironment(task="hard")
+    obs = env.reset()
+
+    # Good agent action
+    good_action = CodeReviewAction(
+        bug_type=CODE_SNIPPETS[0]["bug_type"],
+        severity=CODE_SNIPPETS[0]["severity"],
+        bug_line=CODE_SNIPPETS[0]["bug_line"],
+        fixed_code=CODE_SNIPPETS[0]["fixed_code"],
+        explanation="SQL injection via string formatting in query"
+    )
+    obs2, reward, done, info = env.step(good_action)
+
+    return {
+        "demo": "CodeSentinel RL Loop Example",
+        "task": "hard",
+        "snippet_shown_to_agent": {
+            "code": CODE_SNIPPETS[0]["code"],
+            "title": CODE_SNIPPETS[0]["title"],
+        },
+        "agent_action": {
+            "bug_type": good_action.bug_type,
+            "severity": good_action.severity,
+            "bug_line": good_action.bug_line,
+        },
+        "reward_breakdown": info["breakdown"] if "breakdown" in info else {},
+        "reward": reward,
+        "message": "Reward strictly in (0.05, 0.95) — no sparse signals!"
+    }
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
