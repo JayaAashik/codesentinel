@@ -142,7 +142,20 @@ class CodeSentinelEnvironment:
             total_snippets=len(self._snippets),
             done=False,
         )
-
+def get_adaptive_task(self, agent_score_history: list) -> str:
+    """
+    Adaptive curriculum: promote agent to harder task
+    when they consistently score above threshold.
+    This is what real RL training needs!
+    """
+    if len(agent_score_history) < 5:
+        return "easy"
+    recent_avg = sum(agent_score_history[-5:]) / 5
+    if recent_avg >= 0.75:
+        return "hard"
+    elif recent_avg >= 0.55:
+        return "medium"
+    return "easy"
     def grade_episode(self) -> Dict:
         """Grade the full episode and return summary."""
         if not self._history:
