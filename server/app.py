@@ -351,7 +351,80 @@ def validate():
             status_code=500,
             content={"status": "invalid", "error": str(e)}
         )
+@app.post("/review/start")
+async def review_start(request: Request):
+    """Turn 1 — Agent asks a clarifying question."""
+    try:
+        body = await request.body()
+        data = json.loads(body) if body else {}
+        task = data.get("task", "hard")
+        
+        from server.environment import CodeSentinelEnvironment
+        env = CodeSentinelEnvironment(task=task)
+        obs = env.reset()
+        
+        session_id = str(__import__('uuid').uuid4())[:8]
+        _sessions[session_id] = {"env": env, "obs": obs, "turn": 1}
+        
+        return {
+            "session_id": session_id,
+            "turn": 1,
+            "snippet": {
+                "code": obs.code,
+                "title": obs.title,
+            },
+            "instruction": "Ask ONE clarifying question about this code before giving your review.",
+            "available_questions": [
+                "What Python version is this running on?",
+                "Is this code running in a web context?", 
+                "Is user input sanitized before reaching this function?",
+                "What database is db.execute() connected to?"
+            ]
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
+
+@app.post("/review/complete")
+async def review_complete(request: Request):
+    """Turn 2 — Agent gives final review after context."""
+    try:
+        body = await request.body()
+        data = json.loads(body) if body else {}
+        session_id = data.get("session_id", "")
+        
+        if session_id not in _sessions:
+            return JSONResponse(status_code=400, content={"detail": "Invalid session"})
+        
+        session = _sessions[session_id]
+        env = session["env"]
+        
+        from models import CodeReviewAction
+        action = CodeReviewAction(
+            bug_type=data.get("bug_type", "logic"),
+            severity=int(data.get("severity", 3)),
+            bug_line=int(data.get("bug_line", 1)),
+            fixed_code=data.get("fixed_code"),
+            explanation=data.get("explanation"),
+        )
+        obs, reward, done, info = env.step(action)
+        
+        # Bonus reward for asking a RELEVANT question in turn 1
+        question = data.get("question_asked", "")
+        question_bonus = 0.05 if question else 0.0
+        final_reward = min(0.95, reward + question_bonus)
+        
+        del _sessions[session_id]
+        
+        return {
+            "session_id": session_id,
+            "reward": final_reward,
+            "done": done,
+            "info": info,
+            "multi_turn_bonus": question_bonus
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
