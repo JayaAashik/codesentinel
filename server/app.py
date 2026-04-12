@@ -461,7 +461,259 @@ def demo():
         "reward": reward,
         "message": "Reward strictly in (0.05, 0.95) — no sparse signals!"
     }
+    
+# ── Multi-Turn Review System (Innovative Feature) ─────────────────────────────
+# Simulates how real senior developers do code review:
+# Step 1 → Read code, ask ONE clarifying question
+# Step 2 → Get context, then give final verdict
+# This creates richer RL signal than one-shot review
 
+_review_sessions: dict = {}
+
+
+class ReviewStartRequest(BaseModel):
+    task: str = "hard"
+
+
+class ReviewCompleteRequest(BaseModel):
+    session_id: str
+    question_asked: Optional[str] = None
+    bug_type: str = "logic"
+    severity: int = 3
+    bug_line: int = 1
+    fixed_code: Optional[str] = None
+    explanation: Optional[str] = None
+    teaching_note: Optional[str] = None
+
+
+CLARIFYING_QUESTIONS = {
+    "security": [
+        "Is user input sanitized before reaching this function?",
+        "Is this code exposed directly to the internet?",
+        "What authentication layer wraps this endpoint?",
+    ],
+    "performance": [
+        "How large is the typical input dataset for this function?",
+        "Is this function called in a hot loop or once per request?",
+        "What is the performance SLA for this operation?",
+    ],
+    "logic": [
+        "What is the expected behavior when the input array is empty?",
+        "Are there existing tests covering edge cases for this function?",
+        "What is the typical range of values passed to this function?",
+    ],
+    "null_reference": [
+        "Can this function receive None as input from the caller?",
+        "Is there validation at the API boundary before this is called?",
+        "What should the function return when input is missing?",
+    ],
+    "exception_handling": [
+        "Is this function called in a critical transaction path?",
+        "Are errors here monitored by an alerting system?",
+        "What is the expected recovery behavior when this fails?",
+    ],
+}
+
+CONTEXT_RESPONSES = {
+    "security": "Context: Yes — this function is called directly from a web route. User input flows in from HTTP request parameters without any sanitization layer. The database is a production PostgreSQL instance.",
+    "performance": "Context: This function runs on every page load for approximately 50,000 daily active users. Input datasets range from 100 to 10,000 items. Response time SLA is under 200ms.",
+    "logic": "Context: Input arrays typically have 10-1000 elements. The function is called in a batch processing pipeline. Empty arrays should return None gracefully.",
+    "null_reference": "Context: Yes — this function can absolutely receive None. It is called from 12 different places in the codebase. Some callers do not validate input before passing it.",
+    "exception_handling": "Context: This is inside a payment processing flow. Any unhandled exception causes the transaction to silently fail. There is no dead letter queue or retry mechanism.",
+}
+
+
+def _score_clarifying_question(question: str, snippet_bug_type: str) -> float:
+    """Score how relevant the agent's clarifying question is to the actual bug type."""
+    if not question or len(question.strip()) < 10:
+        return 0.10
+
+    q_lower = question.lower()
+
+    relevance_keywords = {
+        "security": ["user", "input", "sanitize", "exposed", "internet", "authentication", "auth", "sql", "inject"],
+        "performance": ["size", "large", "how many", "frequency", "loop", "dataset", "scale", "calls"],
+        "logic": ["edge case", "empty", "range", "expected", "behavior", "test", "null", "zero"],
+        "null_reference": ["none", "null", "missing", "optional", "validate", "can it be"],
+        "exception_handling": ["fail", "critical", "monitor", "alert", "recover", "transaction", "retry"],
+    }
+
+    relevant_words = relevance_keywords.get(snippet_bug_type, [])
+    matches = sum(1 for w in relevant_words if w in q_lower)
+
+    if matches >= 2:
+        return 0.85
+    elif matches == 1:
+        return 0.55
+    else:
+        return 0.20
+
+
+@app.post("/review/start")
+async def review_start(request: Request):
+    """
+    Turn 1 of multi-turn code review.
+    Agent receives code snippet and must ask ONE clarifying question.
+    A relevant question unlocks a bonus reward multiplier in Turn 2.
+    """
+    try:
+        body = await request.body()
+        task = "hard"
+        try:
+            if body and len(body.strip()) > 2:
+                data = json.loads(body)
+                task = data.get("task", "hard")
+        except Exception:
+            task = "hard"
+
+        from server.environment import CodeSentinelEnvironment
+        env = CodeSentinelEnvironment(task=task)
+        obs = env.reset()
+
+        import uuid as _uuid
+        session_id = str(_uuid.uuid4())[:8]
+
+        snippet_bug_type = "logic"
+        try:
+            from data import SNIPPET_INDEX
+            s = SNIPPET_INDEX.get(obs.snippet_id, {})
+            snippet_bug_type = s.get("bug_type", "logic")
+        except Exception:
+            pass
+
+        _review_sessions[session_id] = {
+            "env": env,
+            "obs": obs,
+            "turn": 1,
+            "task": task,
+            "snippet_bug_type": snippet_bug_type,
+        }
+
+        suggested_questions = CLARIFYING_QUESTIONS.get(snippet_bug_type, CLARIFYING_QUESTIONS["logic"])
+
+        return {
+            "session_id": session_id,
+            "turn": 1,
+            "task": task,
+            "snippet": {
+                "id": obs.snippet_id,
+                "title": obs.title,
+                "code": obs.code,
+                "language": obs.language,
+            },
+            "instruction": (
+                "Read this code snippet carefully. "
+                "Before giving your final review, ask ONE clarifying question "
+                "to better understand the context. "
+                "A relevant question earns a bonus reward multiplier."
+            ),
+            "suggested_questions": suggested_questions,
+            "next_step": "POST /review/complete with session_id and your question + review",
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Review start failed: {str(e)}"}
+        )
+
+
+@app.post("/review/complete")
+async def review_complete(request: Request):
+    """
+    Turn 2 of multi-turn code review.
+    Agent receives context answer to their question, then gives full review.
+    Reward = base_reward * question_multiplier.
+    """
+    try:
+        body = await request.body()
+        data = {}
+        try:
+            if body:
+                data = json.loads(body)
+        except Exception:
+            pass
+
+        session_id = data.get("session_id", "")
+        if not session_id or session_id not in _review_sessions:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid or expired session_id. Call /review/start first."}
+            )
+
+        session = _review_sessions[session_id]
+        env = session["env"]
+        snippet_bug_type = session["snippet_bug_type"]
+
+        question_asked = data.get("question_asked", "")
+        question_score = _score_clarifying_question(question_asked, snippet_bug_type)
+
+        context_given = CONTEXT_RESPONSES.get(snippet_bug_type, "Context: No additional context available.")
+
+        from models import CodeReviewAction
+        action = CodeReviewAction(
+            bug_type=str(data.get("bug_type", "logic")).lower().replace(" ", "_"),
+            severity=int(data.get("severity", 3)),
+            bug_line=int(data.get("bug_line", 1)),
+            fixed_code=data.get("fixed_code", None),
+            explanation=data.get("explanation", None),
+        )
+
+        obs, base_reward, done, info = env.step(action)
+
+        if question_score >= 0.80:
+            multiplier = 1.08
+            bonus_label = "excellent_question"
+        elif question_score >= 0.50:
+            multiplier = 1.04
+            bonus_label = "relevant_question"
+        else:
+            multiplier = 1.00
+            bonus_label = "irrelevant_question"
+
+        final_reward = round(min(0.95, max(0.05, base_reward * multiplier)), 4)
+
+        del _review_sessions[session_id]
+
+        return {
+            "session_id": session_id,
+            "turn": 2,
+            "task": session["task"],
+            "context_provided": context_given,
+            "question_evaluation": {
+                "question_asked": question_asked,
+                "question_score": question_score,
+                "bonus_label": bonus_label,
+                "multiplier": multiplier,
+            },
+            "review_evaluation": {
+                "base_reward": base_reward,
+                "final_reward": final_reward,
+                "breakdown": info.get("breakdown", {}),
+                "correct_bug_type": info.get("correct_bug_type", ""),
+            },
+            "reward": final_reward,
+            "done": done,
+            "observation": asdict(obs),
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Review complete failed: {str(e)}"}
+        )
+
+
+@app.get("/review/sessions")
+def review_sessions_info():
+    """Show active multi-turn review sessions."""
+    return {
+        "active_sessions": len(_review_sessions),
+        "feature": "multi_turn_code_review",
+        "description": "Agents can ask clarifying questions before giving final review",
+        "turns": 2,
+        "bonus_for_relevant_question": "up to 8% reward multiplier",
+    }
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
