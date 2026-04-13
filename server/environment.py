@@ -168,3 +168,74 @@ def get_adaptive_task(self, agent_score_history: list) -> str:
             "bugs_correct": self._bugs_correct,
             "total_snippets": len(self._snippets),
         }
+
+# Add this to your existing CodeSentinelEnvironment class
+
+DIAGNOSTIC_TOOLS = {
+    "security": {
+        "run_linter":     "linter output: no warnings found (linter missed the injection)",
+        "run_sqlmap":     "sqlmap output: VULNERABLE — parameter 'username' is injectable",
+        "check_inputs":   "input trace: username comes directly from request.args['username'] — unsanitized",
+        "read_logs":      "access logs: 47 login attempts with SQL special characters in last 24h",
+    },
+    "performance": {
+        "run_profiler":   "profiler: fibonacci(35) called 29,860,703 times — exponential calls",
+        "check_memory":   "memory: 2.1GB used, growing 50MB/sec — no memoization detected",
+        "run_benchmark":  "benchmark: fibonacci(40) took 38.4 seconds — expected < 0.01s",
+        "read_logs":      "logs: timeout errors on 34% of requests calling this function",
+    },
+    "logic": {
+        "run_tests":      "test output: IndexError at arr[10] when len(arr)=10 — off-by-one",
+        "check_coverage": "coverage: line 3 `range(len(arr)+1)` never tested with edge cases",
+        "run_debugger":   "debugger: loop exits at i=10 with IndexError: list index out of range",
+        "read_logs":      "error logs: 23 IndexError exceptions in production today",
+    },
+    "null_reference": {
+        "run_tests":      "test output: AttributeError: 'NoneType' object has no attribute 'upper'",
+        "check_types":    "type check: parameter 'text' can be None — no guard found",
+        "read_logs":      "logs: NoneType errors 140 times today, all from this function",
+        "run_debugger":   "debugger: text=None received from database when field is empty",
+    },
+    "exception_handling": {
+        "run_tests":      "test output: exception swallowed — function returns None silently",
+        "check_coverage": "coverage: except block never executed in 500 test runs",
+        "read_logs":      "logs: payment failures happening silently — no alerts triggered",
+        "run_debugger":   "debugger: bare except catches SystemExit — this is dangerous",
+    },
+}
+
+def use_tool(self, tool_name: str) -> dict:
+    """
+    Agent runs a diagnostic tool on the current snippet.
+    Returns simulated tool output — makes environment STATEFUL.
+    """
+    if self._done or self._step_count >= len(self._snippets):
+        return {"error": "No active snippet. Call reset() first."}
+
+    current = self._snippets[self._step_count]
+    bug_type = current.get("bug_type", "logic")
+
+    tools_for_type = DIAGNOSTIC_TOOLS.get(bug_type, {})
+    tool_output = tools_for_type.get(
+        tool_name,
+        f"tool '{tool_name}' not found. Available: {list(tools_for_type.keys())}"
+    )
+
+    # Track tool usage in state
+    if not hasattr(self, '_tools_used'):
+        self._tools_used = []
+    self._tools_used.append({"tool": tool_name, "output": tool_output})
+
+    # Reward for using a RELEVANT tool
+    if tool_name in tools_for_type:
+        tool_reward = 0.15
+    else:
+        tool_reward = 0.0
+
+    return {
+        "tool": tool_name,
+        "output": tool_output,
+        "tool_reward": tool_reward,
+        "available_tools": list(tools_for_type.keys()),
+        "hint": "Use tool output to inform your /step action",
+    }
