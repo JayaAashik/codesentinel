@@ -714,6 +714,37 @@ def review_sessions_info():
         "turns": 2,
         "bonus_for_relevant_question": "up to 8% reward multiplier",
     }
+
+@app.post("/tool")
+async def use_tool(request: Request):
+    """
+    Agent runs a diagnostic tool before submitting their review.
+    Makes the environment stateful — agent investigates THEN decides.
+    Available tools: run_linter, run_sqlmap, check_inputs, run_profiler,
+                     run_benchmark, run_tests, check_coverage, read_logs
+    """
+    try:
+        body = await request.body()
+        data = json.loads(body) if body else {}
+        task = data.get("task", "easy")
+        tool_name = data.get("tool", "run_tests")
+
+        env = get_env(task)
+        if env._done:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Call /reset first before using tools."}
+            )
+
+        result = env.use_tool(tool_name)
+        return result
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(e)}
+        )
+        
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
